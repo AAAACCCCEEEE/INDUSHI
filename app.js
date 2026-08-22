@@ -1,5 +1,6 @@
 // INDUSHI Application Controller
 import { INDUSHI_DATA } from './data.js';
+import { app as firebaseApp, analytics } from './firebase.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
