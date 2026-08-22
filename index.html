@@ -36,28 +36,31 @@
 
       <ul class="nav-links" id="navLinks">
         <li><a href="#home" class="nav-link active">Home</a></li>
-        <li><a href="#signatures" class="nav-link">Signatures</a></li>
-        <li><a href="#builder" class="nav-link">Custom Builder</a></li>
-        <li><a href="#menu" class="nav-link">Menu</a></li>
-        <li><a href="#platters" class="nav-link">Platter Towers</a></li>
+        <li class="nav-item-dropdown">
+          <a href="#menu" class="nav-link dropdown-toggle" id="menuDropdownToggle">
+            Menu <i class="fa-solid fa-chevron-down dropdown-arrow"></i>
+          </a>
+          <ul class="dropdown-menu" id="menuDropdown">
+            <li><a href="#menu" class="dropdown-item"><i class="fa-solid fa-utensils"></i> Signatures</a></li>
+            <li><a href="#builder" class="dropdown-item"><i class="fa-solid fa-sliders"></i> Custom Builder</a></li>
+            <li><a href="#platters" class="dropdown-item"><i class="fa-solid fa-boxes-stacked"></i> Platter Towers</a></li>
+          </ul>
+        </li>
         <li><a href="#story" class="nav-link">Our Story</a></li>
       </ul>
 
       <div class="nav-actions">
+        <button class="btn btn-outline nav-book-btn" id="bookTableNavBtn" title="Book a Table">
+          <i class="fa-solid fa-calendar-check"></i>
+          <span class="btn-text">Book Table</span>
+        </button>
+
         <button class="cart-icon-btn" id="openCartBtn" title="View Order Cart">
           <i class="fa-solid fa-bag-shopping"></i>
           <span class="cart-badge" id="cartBadgeCount">0</span>
         </button>
 
-        <button class="btn btn-outline" id="bookTableNavBtn">
-          <i class="fa-solid fa-calendar-check"></i> Book Table
-        </button>
-
-        <button class="btn btn-primary" id="orderNowNavBtn">
-          <i class="fa-solid fa-fire"></i> Order Now
-        </button>
-
-        <button class="mobile-nav-toggle" id="mobileNavToggle">
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle navigation menu">
           <i class="fa-solid fa-bars"></i>
         </button>
       </div>
