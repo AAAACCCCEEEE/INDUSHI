@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>INDUSHI - Indonesian Fusion Sushi | 100% Cooked & Spicy Rolls</title>
+  <meta name="description" content="INDUSHI merges rich Indonesian home-cooked flavors like Rendang, Ayam Geprek, and Sambal Matah into 100% cooked, warm, bite-sized fusion sushi rolls. Order online or book a catering platter!">
+  <!-- FontAwesome Icons for UI icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script type="module" crossorigin src="./assets/index-D_9Nn23b.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-BcxBD4W-.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <nav class="navbar" id="navbar">
+    <div class="container nav-container">
+      <a href="#home" class="brand-logo">
+        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="45" fill="#121212" stroke="#E8501D" stroke-width="3"/>
+          <path d="M50 15C30 15 20 35 20 50C20 70 38 82 50 82C62 82 80 70 80 50C80 35 70 15 50 15Z" fill="url(#flameGrad)"/>
+          <circle cx="50" cy="53" r="22" fill="#1e1e1e" stroke="#ffffff" stroke-width="4"/>
+          <circle cx="50" cy="53" r="12" fill="#E8501D"/>
+          <path d="M72 32C78 40 76 52 70 58C64 64 56 60 52 52" stroke="#FF7954" stroke-width="4" stroke-linecap="round"/>
+          <defs>
+            <linearGradient id="flameGrad" x1="20" y1="15" x2="80" y2="82" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#FF7954"/>
+              <stop offset="1" stop-color="#E8501D"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="brand-title">
+          INDUSHI
+          <span class="sub">INDONESIAN SUSHI</span>
+        </div>
+      </a>
+
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#home" class="nav-link active">Home</a></li>
+        <li class="nav-item-dropdown">
+          <a href="#menu" class="nav-link dropdown-toggle" id="menuDropdownToggle">
+            Menu <i class="fa-solid fa-chevron-down dropdown-arrow"></i>
+          </a>
+          <ul class="dropdown-menu" id="menuDropdown">
+            <li><a href="#menu" class="dropdown-item"><i class="fa-solid fa-utensils"></i> Signatures</a></li>
+            <li><a href="#builder" class="dropdown-item"><i class="fa-solid fa-sliders"></i> Custom Builder</a></li>
+            <li><a href="#platters" class="dropdown-item"><i class="fa-solid fa-boxes-stacked"></i> Platter Towers</a></li>
+          </ul>
+        </li>
+        <li><a href="#story" class="nav-link">Our Story</a></li>
+      </ul>
+
+      <div class="nav-actions">
+        <button class="btn btn-outline nav-book-btn" id="bookTableNavBtn" title="Book a Table">
+          <i class="fa-solid fa-calendar-check"></i>
+          <span class="btn-text">Book Table</span>
+        </button>
+
+        <button class="cart-icon-btn" id="openCartBtn" title="View Order Cart">
+          <i class="fa-solid fa-bag-shopping"></i>
+          <span class="cart-badge" id="cartBadgeCount">0</span>
+        </button>
+
+        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle navigation menu">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Slider Section -->
+  <section class="hero" id="home">
+    <div class="container hero-slider-container">
+      
+      <!-- Slide 1 -->
+      <div class="hero-slide active" data-slide="0">
+        <div class="hero-content">
+          <div class="hero-tag">
+            <i class="fa-solid fa-shield-halved"></i> 100% Fully Cooked & Served Warm
+          </div>
+          <h1 class="hero-title">
+            Bold Indonesian Flavors in <span class="highlight">Bite-Sized Fusion</span>
+          </h1>
+          <p class="hero-desc">
+            Experience 12-hour braised Rendang, flame-torched Aburi glazes, and Balinese Sambal Matah wrapped in fragrant Nasi Uduk. No raw seafood—just rich home-cooked comfort.
+          </p>
+          <div class="hero-actions">
+            <a href="#menu" class="btn btn-primary">
+              <i class="fa-solid fa-utensils"></i> Explore Menu
+            </a>
+            <a href="#builder" class="btn btn-secondary">
+              <i class="fa-solid fa-sliders"></i> Roll Your Own
+            </a>
+          </div>
+        </div>
+        <div class="hero-image-wrapper">
+          <div class="hero-img-card">
+            <img src="https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&w=800&q=80" alt="Rendang Aburi Roll">
+            <div class="hero-img-overlay">
+              <div>
+                <span class="badge badge-aburi">🔥 Flame-Torched</span>
+                <h3 style="color:#fff; margin-top:4px;">Rendang Aburi Supreme</h3>
+              </div>
+              <span style="font-weight:800; color:var(--secondary-accent); font-size:1.2rem;">IDR 68k</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide 2 -->
+      <div class="hero-slide" data-slide="1">
+        <div class="hero-content">
+          <div class="hero-tag">
+            <i class="fa-solid fa-pepper-hot"></i> Adjustable Spice Levels 1 to 5
+          </div>
+          <h1 class="hero-title">
+            Spicy Garlic Crunch Meets <span class="highlight">Torched Mozzarella</span>
+          </h1>
+          <p class="hero-desc">
+            The Ayam Geprek Mozza Roll brings crunchy garlic-chili smashed chicken with molten cheese, flame-torched to perfection right before delivery.
+          </p>
+          <div class="hero-actions">
+            <a href="#menu" class="btn btn-primary">
+              <i class="fa-solid fa-fire"></i> Order Ayam Geprek
+            </a>
+            <button class="btn btn-outline" id="heroBookBtn2">
+              <i class="fa-solid fa-chair"></i> Reserve Seat
+            </button>
+          </div>
+        </div>
+        <div class="hero-image-wrapper">
+          <div class="hero-img-card">
+            <img src="https://images.unsplash.com/photo-1611143669185-af224c5e3252?auto=format&fit=crop&w=800&q=80" alt="Ayam Geprek Mozza Roll">
+            <div class="hero-img-overlay">
+              <div>
+                <span class="badge badge-bestseller">🔥 Spice Level 5</span>
+                <h3 style="color:#fff; margin-top:4px;">Ayam Geprek Mozza</h3>
+              </div>
+              <span style="font-weight:800; color:var(--secondary-accent); font-size:1.2rem;">IDR 58k</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide 3 -->
+      <div class="hero-slide" data-slide="2">
+        <div class="hero-content">
+          <div class="hero-tag">
+            <i class="fa-solid fa-crown"></i> Office & Party Catering Platter
+          </div>
+          <h1 class="hero-title">
+            Modern Twist on <span class="highlight">Traditional Tumpeng</span>
+          </h1>
+          <p class="hero-desc">
+            Replace boring sandwich boxes with our 48-piece to 192-piece INDUSHI Sushi Platter Towers. Clean, visual finger food for memorable events.
+          </p>
+          <div class="hero-actions">
+            <a href="#platters" class="btn btn-primary">
+              <i class="fa-solid fa-boxes-stacked"></i> View Platter Towers
+            </a>
+          </div>
+        </div>
+        <div class="hero-image-wrapper">
+          <div class="hero-img-card">
+            <img src="https://images.unsplash.com/photo-1553621042-f6e147245754?auto=format&fit=crop&w=800&q=80" alt="Catering Sushi Tower">
+            <div class="hero-img-overlay">
+              <div>
+                <span class="badge badge-cooked">✓ Catering Ready</span>
+                <h3 style="color:#fff; margin-top:4px;">INDUSHI Platter Tower</h3>
+              </div>
+              <span style="font-weight:800; color:var(--secondary-accent); font-size:1.2rem;">From IDR 480k</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls & Indicators -->
+      <div class="hero-controls">
+        <button class="hero-btn" id="prevHeroBtn"><i class="fa-solid fa-chevron-left"></i></button>
+        <div class="hero-indicators">
+          <span class="indicator-dot active" data-to="0"></span>
+          <span class="indicator-dot" data-to="1"></span>
+          <span class="indicator-dot" data-to="2"></span>
+        </div>
+        <button class="hero-btn" id="nextHeroBtn"><i class="fa-solid fa-chevron-right"></i></button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Feature Guarantee Ribbon -->
+  <div class="guarantee-ribbon">
+    <div class="container ribbon-grid">
+      <div class="ribbon-item">
+        <div class="ribbon-icon"><i class="fa-solid fa-temperature-arrow-up"></i></div>
+        <div class="ribbon-info">
+          <h4>100% Cooked & Warm</h4>
+          <p>Zero raw fish. Safe, warm & savory for every palate.</p>
+        </div>
+      </div>
+      <div class="ribbon-item">
+        <div class="ribbon-icon"><i class="fa-solid fa-pepper-hot"></i></div>
+        <div class="ribbon-info">
+          <h4>Authentic Sambals</h4>
+          <p>Hand-pounded Sambal Matah, Terasi & Roa.</p>
+        </div>
+      </div>
+      <div class="ribbon-item">
+        <div class="ribbon-icon"><i class="fa-solid fa-fire-burner"></i></div>
+        <div class="ribbon-info">
+          <h4>Flame-Torched Aburi</h4>
+          <p>Melted cheeses & caramelized aromatic glazes.</p>
+        </div>
+      </div>
+      <div class="ribbon-item">
+        <div class="ribbon-icon"><i class="fa-solid fa-qrcode"></i></div>
+        <div class="ribbon-info">
+          <h4>Instant Local Courier</h4>
+          <p>Express delivery with QRIS & e-wallet checkout.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Interactive Custom Roll Builder Section -->
+  <section class="builder-section" id="builder">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-subtitle">Interactive Culinary Studio</div>
+        <h2 class="section-title">Roll Your Own INDUSHI</h2>
+        <p class="section-desc">
+          Craft your personal fusion roll! Mix Indonesian heritage rice, premium cooked proteins, crunch fillings, and signature regional sambals.
+        </p>
+      </div>
+
+      <div class="builder-card">
+        <div class="builder-grid">
+          
+          <!-- Builder Steps -->
+          <div class="builder-steps">
+            
+            <!-- Step 1: Base Rice -->
+            <div class="builder-step-group">
+              <h4><span>1.</span> Select Rice Base</h4>
+              <div class="builder-options" id="baseOptions">
+                <!-- Injected via JS -->
+              </div>
+            </div>
+
+            <!-- Step 2: Protein -->
+            <div class="builder-step-group">
+              <h4><span>2.</span> Choose Cooked Protein</h4>
+              <div class="builder-options" id="proteinOptions">
+                <!-- Injected via JS -->
+              </div>
+            </div>
+
+            <!-- Step 3: Fillings -->
+            <div class="builder-step-group">
+              <h4><span>3.</span> Add Crunch & Fillings</h4>
+              <div class="builder-options" id="fillingOptions">
+                <!-- Injected via JS -->
+              </div>
+            </div>
+
+            <!-- Step 4: Sambal / Topping -->
+            <div class="builder-step-group">
+              <h4><span>4.</span> Signature Topping Sambal</h4>
+              <div class="builder-options" id="toppingOptions">
+                <!-- Injected via JS -->
+              </div>
+            </div>
+
+            <!-- Step 5: Torch Level -->
+            <div class="builder-step-group">
+              <h4><span>5.</span> Flame Torch Finish</h4>
+              <div class="builder-options" id="torchOptions">
+                <!-- Injected via JS -->
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Builder Live Preview Panel -->
+          <div class="builder-preview-box">
+            <div>
+              <h3 style="margin-bottom: 1rem; text-align:center;">Your Custom Creation</h3>
+              
+              <div class="preview-graphic">
+                <div class="preview-sushi-visual" id="sushiVisual">
+                  <div class="preview-sushi-inner" id="sushiVisualText">
+                    INDUSHI
+                  </div>
+                </div>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.8rem;" id="visualSubtext">
+                  100% Cooked • Warm Flame Finished
+                </div>
+              </div>
+
+              <ul class="preview-summary-list">
+                <li><span>Base:</span> <span class="val" id="summaryBase">Nasi Uduk</span></li>
+                <li><span>Protein:</span> <span class="val" id="summaryProtein">Beef Rendang</span></li>
+                <li><span>Filling:</span> <span class="val" id="summaryFilling">Potato Flakes</span></li>
+                <li><span>Topping:</span> <span class="val" id="summaryTopping">Sambal Matah</span></li>
+                <li><span>Finish:</span> <span class="val" id="summaryTorch">Warm Glazed</span></li>
+              </ul>
+            </div>
+
+            <div>
+              <div class="preview-price-total">
+                <span class="label">Total Price:</span>
+                <span class="amount" id="customTotalPrice">IDR 50,000</span>
+              </div>
+              <button class="btn btn-primary" id="addCustomRollBtn" style="width:100%;">
+                <i class="fa-solid fa-cart-plus"></i> Add Custom Roll to Cart
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Signatures & Main Menu Section -->
+  <section class="products-section" id="menu">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-subtitle">Our Menu Collection</div>
+        <h2 class="section-title">Explore INDUSHI Signatures</h2>
+        <p class="section-desc">
+          Every roll is handcrafted upon order, 100% cooked to perfection, and infused with freshly prepared Indonesian spices.
+        </p>
+      </div>
+
+      <!-- Filter Controls -->
+      <div class="filter-container">
+        <div class="category-tabs" id="categoryTabs">
+          <!-- Injected via JS -->
+        </div>
+
+        <div class="secondary-filters">
+          <div class="filter-group">
+            <i class="fa-solid fa-pepper-hot" style="color:var(--secondary-accent);"></i>
+            <label for="spiceFilter">Max Spice Level:</label>
+            <select id="spiceFilter">
+              <option value="all">All Spice Levels (0 - 5)</option>
+              <option value="mild">Mild Spices (0 - 2)</option>
+              <option value="medium">Medium Spices (3 - 4)</option>
+              <option value="spicy">Fire Lovers (5)</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <i class="fa-solid fa-fire" style="color:var(--primary-accent);"></i>
+            <label for="styleFilter">Cooking Style:</label>
+            <select id="styleFilter">
+              <option value="all">All Styles</option>
+              <option value="Flame-Torched Aburi">Flame-Torched Aburi</option>
+              <option value="Warm Glazed">Warm Glazed</option>
+              <option value="100% Cooked">100% Cooked</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Products Grid -->
+      <div class="product-grid" id="productGrid">
+        <!-- Injected via JS -->
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Catering & Platter Towers Section -->
+  <section class="catering-section" id="platters">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-subtitle">Corporate & Event Catering</div>
+        <h2 class="section-title">INDUSHI Sushi Platter Towers</h2>
+        <p class="section-desc">
+          Elevate your team meetings, office lunches, and celebrations with visually breathtaking fusion sushi towers—the modern alternative to traditional Tumpeng.
+        </p>
+      </div>
+
+      <div class="platter-grid" id="platterGrid">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Our Story & Customer Testimonials Section -->
+  <section class="story-section" id="story">
+    <div class="container">
+      
+      <div class="story-grid">
+        <div class="story-visual">
+          <img src="https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&w=800&q=80" alt="INDUSHI Kitchen Craft" class="story-img">
+        </div>
+        <div class="story-content">
+          <div class="section-subtitle">The INDUSHI Story</div>
+          <h2 class="section-title" style="text-align:left; margin-bottom:1.2rem;">
+            Why Choose Between Indonesian Spice & Sushi Presentation?
+          </h2>
+          <p class="section-desc" style="text-align:left; margin-bottom:1rem;">
+            Traditional sushi is often cold and raw, contrasting with Indonesian food lovers who crave hot, aromatic, and heavily seasoned meals. Meanwhile, classic nasi boxes can be messy for corporate events or finger-food parties.
+          </p>
+          <p class="section-desc" style="text-align:left; margin-bottom:1.5rem;">
+            INDUSHI bridges both worlds: 100% cooked warm meats, authentic regional sambals, and bite-sized perfection.
+          </p>
+          <div style="display:flex; gap:2rem;">
+            <div>
+              <h3 style="color:var(--primary-accent); font-size:2rem; font-weight:900;">100%</h3>
+              <p style="font-size:0.85rem; color:var(--text-muted);">Cooked & Safe Seafood</p>
+            </div>
+            <div>
+              <h3 style="color:var(--secondary-accent); font-size:2rem; font-weight:900;">15+</h3>
+              <p style="font-size:0.85rem; color:var(--text-muted);">Authentic Sambal Varieties</p>
+            </div>
+            <div>
+              <h3 style="color:#fff; font-size:2rem; font-weight:900;">4.9 ★</h3>
+              <p style="font-size:0.85rem; color:var(--text-muted);">Average Customer Rating</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Testimonials -->
+      <div style="margin-top:5rem;">
+        <div class="section-header">
+          <div class="section-subtitle">Customer Love</div>
+          <h2 class="section-title">What Others Say</h2>
+        </div>
+
+        <div class="testimonials-grid" id="testimonialsGrid">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="brand-logo" style="margin-bottom:1rem;">
+            <svg viewBox="0 0 100 100" fill="none" width="38" height="38" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="50" cy="50" r="45" fill="#121212" stroke="#E8501D" stroke-width="3"/>
+              <circle cx="50" cy="53" r="22" fill="#1e1e1e" stroke="#ffffff" stroke-width="4"/>
+              <circle cx="50" cy="53" r="12" fill="#E8501D"/>
+            </svg>
+            <div class="brand-title" style="font-size:1.3rem;">
+              INDUSHI
+              <span class="sub">INDONESIAN SUSHI</span>
+            </div>
+          </div>
+          <p>
+            INDUSHI is an online ordering platform and culinary brand merging rich Indonesian spices with Japanese sushi presentation. 100% cooked & warm.
+          </p>
+          <div class="social-links">
+            <a href="#" class="social-icon"><i class="fa-brands fa-instagram"></i></a>
+            <a href="#" class="social-icon"><i class="fa-brands fa-tiktok"></i></a>
+            <a href="#" class="social-icon"><i class="fa-brands fa-whatsapp"></i></a>
+          </div>
+        </div>
+
+        <div class="footer-col">
+          <h4>Navigation</h4>
+          <ul class="footer-links">
+            <li><a href="#home">Home</a></li>
+            <li><a href="#signatures">Signatures</a></li>
+            <li><a href="#builder">Custom Builder</a></li>
+            <li><a href="#menu">Full Menu</a></li>
+            <li><a href="#platters">Catering Platters</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Operating Hours</h4>
+          <ul class="footer-links" style="color:var(--text-muted);">
+            <li>Mon - Fri: 10:00 - 22:00</li>
+            <li>Sat - Sun: 09:00 - 23:00</li>
+            <li>Instant Courier Delivery Available</li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Contact & Location</h4>
+          <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:0.8rem;">
+            <i class="fa-solid fa-location-dot" style="color:var(--primary-accent);"></i> Senopati Culinary District, South Jakarta
+          </p>
+          <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:0.8rem;">
+            <i class="fa-solid fa-phone" style="color:var(--primary-accent);"></i> +62 812 9900 8812
+          </p>
+          <p style="font-size:0.9rem; color:var(--text-muted);">
+            <i class="fa-solid fa-envelope" style="color:var(--primary-accent);"></i> hello@indushi.id
+          </p>
+        </div>
+
+      </div>
+
+      <div class="footer-bottom">
+        <p>&copy; 2026 INDUSHI (Indonesian Sushi). All rights reserved. Created for Sebastian Jefferson.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Shopping Cart Slide-over Drawer -->
+  <div class="cart-drawer-overlay" id="cartOverlay">
+    <div class="cart-drawer">
+      <div class="drawer-header">
+        <h3><i class="fa-solid fa-bag-shopping" style="color:var(--primary-accent);"></i> Your Order Cart</h3>
+        <button class="close-drawer-btn" id="closeCartBtn">&times;</button>
+      </div>
+
+      <div class="drawer-body" id="cartItemList">
+        <!-- Cart Items Injected via JS -->
+      </div>
+
+      <div class="drawer-footer">
+        <div class="cart-total-row">
+          <span>Subtotal:</span>
+          <span style="color:var(--secondary-accent);" id="cartSubtotalAmount">IDR 0</span>
+        </div>
+        <button class="btn btn-primary" id="proceedCheckoutBtn" style="width:100%;">
+          <i class="fa-solid fa-shield-check"></i> Proceed to Checkout
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Checkout Modal -->
+  <div class="modal-overlay" id="checkoutModal">
+    <div class="modal-box">
+      <button class="close-modal-btn" id="closeCheckoutBtn">&times;</button>
+      <h2 style="margin-bottom:0.4rem;"><i class="fa-solid fa-credit-card" style="color:var(--primary-accent);"></i> Instant Delivery Checkout</h2>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem;">Select your local payment method and track your order dispatch.</p>
+
+      <form id="checkoutForm">
+        <div class="form-group">
+          <label for="custName">Full Name</label>
+          <input type="text" id="custName" placeholder="e.g. Sebastian Jefferson" required>
+        </div>
+
+        <div class="form-group">
+          <label for="custPhone">WhatsApp Phone Number</label>
+          <input type="tel" id="custPhone" placeholder="e.g. 081234567890" required>
+        </div>
+
+        <div class="form-group">
+          <label for="custAddress">Delivery Address</label>
+          <textarea id="custAddress" rows="2" placeholder="Street, Building, Unit & City..." required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Select Payment Method</label>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.6rem; margin-top:0.4rem;">
+            <button type="button" class="btn btn-secondary pay-method-btn active" data-pay="qris">
+              <i class="fa-solid fa-qrcode"></i> QRIS
+            </button>
+            <button type="button" class="btn btn-secondary pay-method-btn" data-pay="gopay">
+              <i class="fa-solid fa-wallet"></i> GoPay
+            </button>
+            <button type="button" class="btn btn-secondary pay-method-btn" data-pay="shopeepay">
+              <i class="fa-solid fa-mobile-screen"></i> ShopeePay
+            </button>
+          </div>
+        </div>
+
+        <div class="qris-box" id="qrisVisualBox">
+          <p style="font-weight:700; font-size:0.85rem; margin-bottom:0.4rem;">Scan QRIS Code to Pay</p>
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=INDUSHI_PAYMENT_SAMPLE" alt="QRIS Code">
+          <p style="font-size:0.75rem; color:#666;">Supported by BCA, Mandiri, GoPay, ShopeePay, OVO, DANA</p>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%; margin-top:1rem;">
+          <i class="fa-solid fa-check-circle"></i> Confirm & Pay Order
+        </button>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- Table Booking Modal -->
+  <div class="modal-overlay" id="bookingModal">
+    <div class="modal-box">
+      <button class="close-modal-btn" id="closeBookingBtn">&times;</button>
+      <h2 style="margin-bottom:0.4rem;"><i class="fa-solid fa-calendar-days" style="color:var(--primary-accent);"></i> Reserve a Table</h2>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem;">Join us at our Senopati flame-bar location for freshly torched rolls!</p>
+
+      <form id="bookingForm">
+        <div class="form-group">
+          <label for="bookName">Guest Name</label>
+          <input type="text" id="bookName" placeholder="Your Name" required>
+        </div>
+
+        <div class="form-group">
+          <label for="bookEmail">Email Address</label>
+          <input type="email" id="bookEmail" placeholder="yourname@domain.com" required>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+          <div class="form-group">
+            <label for="bookDate">Date</label>
+            <input type="date" id="bookDate" required>
+          </div>
+          <div class="form-group">
+            <label for="bookTime">Time</label>
+            <select id="bookTime">
+              <option value="12:00">12:00 PM (Lunch)</option>
+              <option value="13:30">01:30 PM (Lunch)</option>
+              <option value="18:30">06:30 PM (Dinner)</option>
+              <option value="20:00">08:00 PM (Dinner)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="bookPax">Number of Guests</label>
+          <select id="bookPax">
+            <option value="2">2 Guests</option>
+            <option value="4">4 Guests</option>
+            <option value="6">6 Guests</option>
+            <option value="8+">8+ Guests (Party)</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%; margin-top:1rem;">
+          <i class="fa-solid fa-bookmark"></i> Confirm Reservation
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- JS Scripts -->
+</body>
+</html>
