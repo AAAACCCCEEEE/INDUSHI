@@ -1,6 +1,8 @@
 // Firebase Initialization Module for INDUSHI
 import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -15,6 +17,8 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
 // Initialize Analytics conditionally based on browser support
 let analytics = null;
@@ -26,4 +30,5 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export { app, analytics, firebaseConfig };
+export { app, auth, db, analytics, firebaseConfig };
+

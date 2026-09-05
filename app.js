@@ -1,11 +1,67 @@
-// INDUSHI Application Controller
+// INDUSHI Application Controller & Admin Control System
 import { INDUSHI_DATA } from './data.js';
-import { app as firebaseApp, analytics } from './firebase.js';
+import { app as firebaseApp, auth, db, analytics } from './firebase.js';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged 
+} from "firebase/auth";
+import { 
+  doc, 
+  setDoc, 
+  getDoc 
+} from "firebase/firestore";
 
 document.addEventListener('DOMContentLoaded', () => {
 
+  const INITIAL_PRODUCTS = INDUSHI_DATA.products;
+
   // --- STATE MANAGEMENT ---
   const state = {
+    user: JSON.parse(localStorage.getItem('indushi_user')) || null,
+    products: JSON.parse(localStorage.getItem('indushi_products')) || INITIAL_PRODUCTS,
+    orders: JSON.parse(localStorage.getItem('indushi_orders')) || [
+      {
+        id: 'ORD-1001',
+        customer: 'Reza Rahardian',
+        phone: '081299887766',
+        address: 'Jl. Senopati No. 42, Jakarta Selatan',
+        items: '1x Rendang Aburi Supreme Roll, 1x Es Cendol Matcha',
+        total: 100000,
+        paymentMethod: 'QRIS',
+        status: 'Delivered',
+        createdAt: '2026-09-04 14:30'
+      },
+      {
+        id: 'ORD-1002',
+        customer: 'Sarah Amalia',
+        phone: '081345678901',
+        address: 'SCBD Tower 2 Lt. 15, Jakarta Pusat',
+        items: '1x Pesta Nusantara Platter Tower',
+        total: 890000,
+        paymentMethod: 'GoPay',
+        status: 'Pending',
+        createdAt: '2026-09-05 08:15'
+      }
+    ],
+    bookings: JSON.parse(localStorage.getItem('indushi_bookings')) || [
+      {
+        id: 'RSV-501',
+        name: 'Michael Tan',
+        email: 'michael.tan@gmail.com',
+        date: '2026-09-06',
+        time: '18:30',
+        pax: '4 Guests',
+        status: 'Confirmed',
+        createdAt: '2026-09-04 19:00'
+      }
+    ],
+    siteSettings: JSON.parse(localStorage.getItem('indushi_settings')) || {
+      showAnnouncement: true,
+      announcementText: 'Get 20% OFF on all Signature Rolls with code INDUSHIFUSION20!',
+      isStoreOpen: true
+    },
     activeCategory: 'all',
     spiceFilter: 'all',
     styleFilter: 'all',
@@ -23,11 +79,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  // --- STATE SAVERS ---
+  function saveProducts() {
+    localStorage.setItem('indushi_products', JSON.stringify(state.products));
+  }
+  function saveOrders() {
+    localStorage.setItem('indushi_orders', JSON.stringify(state.orders));
+  }
+  function saveBookings() {
+    localStorage.setItem('indushi_bookings', JSON.stringify(state.bookings));
+  }
+  function saveSettings() {
+    localStorage.setItem('indushi_settings', JSON.stringify(state.siteSettings));
+  }
+  function saveUser() {
+    if (state.user) {
+      localStorage.setItem('indushi_user', JSON.stringify(state.user));
+    } else {
+      localStorage.removeItem('indushi_user');
+    }
+  }
+
   // --- DOM ELEMENTS ---
+  const announcementBar = document.getElementById('announcementBar');
+  const announcementText = document.getElementById('announcementText');
+  const closeAnnouncementBtn = document.getElementById('closeAnnouncementBtn');
+
   const navLinks = document.querySelectorAll('.nav-link');
   const mobileNavToggle = document.getElementById('mobileNavToggle');
   const navLinksMenu = document.getElementById('navLinks');
-  
+  const userNavContainer = document.getElementById('userNavContainer');
+  const openAuthModalBtn = document.getElementById('openAuthModalBtn');
+
   const heroSlides = document.querySelectorAll('.hero-slide');
   const heroDots = document.querySelectorAll('.indicator-dot');
   const prevHeroBtn = document.getElementById('prevHeroBtn');
@@ -81,8 +164,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const toastContainer = document.getElementById('toastContainer');
 
+  // Auth Modal Elements
+  const authModal = document.getElementById('authModal');
+  const closeAuthBtn = document.getElementById('closeAuthBtn');
+  const tabLoginBtn = document.getElementById('tabLoginBtn');
+  const tabRegisterBtn = document.getElementById('tabRegisterBtn');
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+
+  // Admin Dashboard Elements
+  const adminDashboardModal = document.getElementById('adminDashboardModal');
+  const closeAdminDashboardBtn = document.getElementById('closeAdminDashboardBtn');
+  const adminNavItems = document.querySelectorAll('[data-admin-tab]');
+  const adminTabContents = document.querySelectorAll('.admin-tab-content');
+  const adminTabTitle = document.getElementById('adminTabTitle');
+  const adminTabSubtitle = document.getElementById('adminTabSubtitle');
+  const adminLoggedName = document.getElementById('adminLoggedName');
+  const adminLogoutBtn = document.getElementById('adminLogoutBtn');
+  const viewLiveSiteBtn = document.getElementById('viewLiveSiteBtn');
+
+  // Admin Products Tab Elements
+  const adminProductSearch = document.getElementById('adminProductSearch');
+  const adminCategoryFilter = document.getElementById('adminCategoryFilter');
+  const openAddProductBtn = document.getElementById('openAddProductBtn');
+  const adminProductsTableBody = document.getElementById('adminProductsTableBody');
+
+  // Admin Product Form Modal Elements
+  const productFormModal = document.getElementById('productFormModal');
+  const closeProductFormBtn = document.getElementById('closeProductFormBtn');
+  const productForm = document.getElementById('productForm');
+  const productModalHeading = document.getElementById('productModalHeading');
+  const editProductIdInput = document.getElementById('editProductId');
+
+  // Admin Settings Tab Elements
+  const toggleAnnouncementBar = document.getElementById('toggleAnnouncementBar');
+  const announcementTextEdit = document.getElementById('announcementTextEdit');
+  const saveBannerSettingsBtn = document.getElementById('saveBannerSettingsBtn');
+  const toggleStoreOpen = document.getElementById('toggleStoreOpen');
+  const saveStoreStatusBtn = document.getElementById('saveStoreStatusBtn');
+  const resetDataDefaultBtn = document.getElementById('resetDataDefaultBtn');
+
   // --- INITIALIZATION ---
+  initAnnouncementBar();
   initNavbar();
+  initAuthSystem();
   initHeroSlider();
   initCategories();
   initFilters();
@@ -91,7 +216,257 @@ document.addEventListener('DOMContentLoaded', () => {
   renderPlatters();
   renderTestimonials();
   initCartAndModals();
+  initAdminDashboard();
   updateCartUI();
+  updateUserNavUI();
+
+  // --- ANNOUNCEMENT BAR LOGIC ---
+  function initAnnouncementBar() {
+    if (!announcementBar) return;
+    if (state.siteSettings.showAnnouncement) {
+      announcementBar.style.display = 'block';
+      if (announcementText) announcementText.textContent = state.siteSettings.announcementText;
+    } else {
+      announcementBar.style.display = 'none';
+    }
+
+    if (closeAnnouncementBtn) {
+      closeAnnouncementBtn.addEventListener('click', () => {
+        announcementBar.style.display = 'none';
+      });
+    }
+  }
+
+  // --- AUTH SYSTEM LOGIC (FIREBASE AUTH & FIRESTORE INTEGRATED) ---
+  function initAuthSystem() {
+    if (openAuthModalBtn) {
+      openAuthModalBtn.addEventListener('click', () => {
+        authModal.classList.add('active');
+      });
+    }
+
+    if (closeAuthBtn) {
+      closeAuthBtn.addEventListener('click', () => {
+        authModal.classList.remove('active');
+      });
+    }
+
+    if (authModal) {
+      authModal.addEventListener('click', (e) => {
+        if (e.target === authModal) authModal.classList.remove('active');
+      });
+    }
+
+    // Auth Tab Switches
+    if (tabLoginBtn && tabRegisterBtn) {
+      tabLoginBtn.addEventListener('click', () => {
+        tabLoginBtn.classList.add('active');
+        tabRegisterBtn.classList.remove('active');
+        loginForm.style.display = 'flex';
+        registerForm.style.display = 'none';
+      });
+
+      tabRegisterBtn.addEventListener('click', () => {
+        tabRegisterBtn.classList.add('active');
+        tabLoginBtn.classList.remove('active');
+        loginForm.style.display = 'none';
+        registerForm.style.display = 'flex';
+      });
+    }
+
+    // Firebase Auth State Listener
+    onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const userDocRef = doc(db, "users", firebaseUser.uid);
+          const userSnap = await getDoc(userDocRef);
+
+          let name = firebaseUser.displayName || firebaseUser.email.split('@')[0];
+          let role = firebaseUser.email.toLowerCase().includes('admin') ? 'admin' : 'customer';
+
+          if (userSnap.exists()) {
+            const data = userSnap.data();
+            if (data.name) name = data.name;
+            if (data.role) role = data.role;
+          } else {
+            // Save initial user profile to Firestore
+            await setDoc(userDocRef, {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              name,
+              role,
+              createdAt: new Date().toISOString()
+            });
+          }
+
+          state.user = { uid: firebaseUser.uid, email: firebaseUser.email, name, role };
+          saveUser();
+          updateUserNavUI();
+        } catch (err) {
+          console.warn("Firestore sync note:", err);
+          let role = firebaseUser.email.toLowerCase().includes('admin') ? 'admin' : 'customer';
+          let name = firebaseUser.email.split('@')[0];
+          state.user = { uid: firebaseUser.uid, email: firebaseUser.email, name, role };
+          saveUser();
+          updateUserNavUI();
+        }
+      } else {
+        state.user = null;
+        saveUser();
+        updateUserNavUI();
+      }
+    });
+
+    // Login Form Submit -> Firebase Auth Sign In
+    if (loginForm) {
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value;
+
+        try {
+          showToast('Signing in with Firebase...', 'info');
+          const userCredential = await signInWithEmailAndPassword(auth, email, password);
+          const fbUser = userCredential.user;
+
+          if (authModal) authModal.classList.remove('active');
+          showToast(`Welcome back! Logged in to Firebase 👋`, 'success');
+
+          if (email.toLowerCase().includes('admin')) {
+            setTimeout(() => {
+              openAdminDashboard();
+            }, 400);
+          }
+        } catch (error) {
+          console.error("Firebase Login Error:", error);
+          let msg = 'Failed to sign in.';
+          if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+            msg = 'No account found or invalid credentials in Firebase!';
+          } else if (error.code === 'auth/wrong-password') {
+            msg = 'Incorrect password!';
+          } else if (error.code === 'auth/invalid-email') {
+            msg = 'Invalid email address format.';
+          } else {
+            msg = error.message || 'Firebase login failed.';
+          }
+          showToast(msg, 'error');
+        }
+      });
+    }
+
+    // Register Form Submit -> Firebase Auth Create User + Firestore Entry
+    if (registerForm) {
+      registerForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('regName').value.trim();
+        const email = document.getElementById('regEmail').value.trim();
+        const password = document.getElementById('regPassword').value;
+
+        try {
+          showToast('Registering user in Firebase Auth...', 'info');
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          const fbUser = userCredential.user;
+
+          const role = email.toLowerCase().includes('admin') ? 'admin' : 'customer';
+
+          // Save user data to Firebase Firestore
+          try {
+            await setDoc(doc(db, "users", fbUser.uid), {
+              uid: fbUser.uid,
+              email: email,
+              name: name,
+              role: role,
+              createdAt: new Date().toISOString()
+            });
+          } catch (fsErr) {
+            console.warn("Firestore user creation note:", fsErr);
+          }
+
+          state.user = { uid: fbUser.uid, email, name, role };
+          saveUser();
+          updateUserNavUI();
+
+          if (authModal) authModal.classList.remove('active');
+          showToast(`User created & saved to Firebase! Welcome ${name} 🎉`, 'success');
+
+          if (role === 'admin') {
+            setTimeout(() => {
+              openAdminDashboard();
+            }, 400);
+          }
+        } catch (error) {
+          console.error("Firebase Register Error:", error);
+          let msg = 'Failed to register account in Firebase.';
+          if (error.code === 'auth/email-already-in-use') {
+            msg = 'This email is already registered in Firebase!';
+          } else if (error.code === 'auth/weak-password') {
+            msg = 'Password should be at least 6 characters.';
+          } else {
+            msg = error.message || 'Firebase registration failed.';
+          }
+          showToast(msg, 'error');
+        }
+      });
+    }
+
+    if (adminLogoutBtn) {
+      adminLogoutBtn.addEventListener('click', performLogout);
+    }
+  }
+
+  async function performLogout() {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn("Firebase SignOut note:", e);
+    }
+    state.user = null;
+    saveUser();
+    updateUserNavUI();
+    if (adminDashboardModal) adminDashboardModal.classList.remove('active');
+    showToast('Logged out of Firebase session.', 'info');
+  }
+
+  function updateUserNavUI() {
+    if (!userNavContainer) return;
+
+    if (state.user) {
+      if (state.user.role === 'admin') {
+        userNavContainer.innerHTML = `
+          <button class="nav-admin-btn" id="openAdminNavBtn">
+            <i class="fa-solid fa-user-shield"></i>
+            <span>Admin Panel</span>
+          </button>
+          <button class="btn-icon-only" id="navLogoutBtn" title="Logout">
+            <i class="fa-solid fa-right-from-bracket"></i>
+          </button>
+        `;
+        document.getElementById('openAdminNavBtn').addEventListener('click', openAdminDashboard);
+        document.getElementById('navLogoutBtn').addEventListener('click', performLogout);
+      } else {
+        userNavContainer.innerHTML = `
+          <div class="nav-user-pill">
+            <div class="nav-user-avatar">${state.user.name.charAt(0)}</div>
+            <span>${state.user.name.split(' ')[0]}</span>
+          </div>
+          <button class="btn-icon-only" id="navLogoutBtn" title="Logout">
+            <i class="fa-solid fa-right-from-bracket"></i>
+          </button>
+        `;
+        document.getElementById('navLogoutBtn').addEventListener('click', performLogout);
+      }
+    } else {
+      userNavContainer.innerHTML = `
+        <button class="btn btn-primary nav-login-btn" id="openAuthModalBtn">
+          <i class="fa-solid fa-user"></i>
+          <span class="btn-text">Login</span>
+        </button>
+      `;
+      document.getElementById('openAuthModalBtn').addEventListener('click', () => {
+        if (authModal) authModal.classList.add('active');
+      });
+    }
+  }
 
   // --- NAVBAR LOGIC ---
   function initNavbar() {
@@ -119,7 +494,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Toggle dropdown on click/touch (for mobile viewports)
     if (dropdownToggle && dropdownItemParent) {
       dropdownToggle.addEventListener('click', (e) => {
         if (window.innerWidth <= 768) {
@@ -129,7 +503,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Toggle Mobile Navigation Drawer
     if (mobileNavToggle && navLinksMenu) {
       mobileNavToggle.addEventListener('click', () => {
         navLinksMenu.classList.toggle('active');
@@ -143,7 +516,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Close mobile nav menu when any link or dropdown item is clicked
     allNavLinks.forEach(link => {
       link.addEventListener('click', (e) => {
         const href = link.getAttribute('href');
@@ -197,7 +569,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Auto play every 6 seconds
     state.heroAutoTimer = setInterval(nextSlide, 6000);
   }
 
@@ -232,14 +603,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderProducts() {
-    let filtered = INDUSHI_DATA.products;
+    let filtered = state.products;
 
-    // Filter by Category
     if (state.activeCategory !== 'all') {
       filtered = filtered.filter(p => p.category === state.activeCategory);
     }
 
-    // Filter by Spice Level
     if (state.spiceFilter === 'mild') {
       filtered = filtered.filter(p => p.spiceLevel <= 2);
     } else if (state.spiceFilter === 'medium') {
@@ -248,7 +617,6 @@ document.addEventListener('DOMContentLoaded', () => {
       filtered = filtered.filter(p => p.spiceLevel === 5);
     }
 
-    // Filter by Style
     if (state.styleFilter !== 'all') {
       filtered = filtered.filter(p => p.cookingStyle === state.styleFilter);
     }
@@ -270,7 +638,8 @@ document.addEventListener('DOMContentLoaded', () => {
           <img src="${item.image}" alt="${item.name}" loading="lazy">
           <div class="product-badges">
             ${item.isCooked ? `<span class="badge badge-cooked"><i class="fa-solid fa-circle-check"></i> 100% Cooked</span>` : ''}
-            ${item.cookingStyle.includes('Aburi') ? `<span class="badge badge-aburi"><i class="fa-solid fa-fire"></i> Torched Aburi</span>` : ''}
+            ${item.cookingStyle && item.cookingStyle.includes('Aburi') ? `<span class="badge badge-aburi"><i class="fa-solid fa-fire"></i> Torched Aburi</span>` : ''}
+            ${item.badge ? `<span class="badge badge-bestseller">${item.badge}</span>` : ''}
           </div>
           ${item.spiceLevel > 0 ? `
             <div class="spice-tag">
@@ -282,7 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <h3 class="product-title">${item.name}</h3>
           <p class="product-desc">${item.description}</p>
           <div class="product-footer">
-            <span class="product-price">${item.formattedPrice}</span>
+            <span class="product-price">${item.formattedPrice || `IDR ${parseInt(item.price).toLocaleString()}`}</span>
             <button class="add-cart-btn" data-id="${item.id}" title="Add to Cart">
               <i class="fa-solid fa-plus"></i>
             </button>
@@ -291,11 +660,10 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `).join('');
 
-    // Attach Add to Cart Listeners
     productGrid.querySelectorAll('.add-cart-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', () => {
         const prodId = btn.getAttribute('data-id');
-        const product = INDUSHI_DATA.products.find(p => p.id === prodId);
+        const product = state.products.find(p => p.id === prodId);
         if (product) {
           addToCart(product);
         }
@@ -305,7 +673,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- CUSTOM ROLL BUILDER LOGIC ---
   function initCustomBuilder() {
-    // Render option chips
     renderChipGroup(baseOptionsContainer, INDUSHI_DATA.customBuilderOptions.bases, 'base', state.customRoll.base.id);
     renderChipGroup(proteinOptionsContainer, INDUSHI_DATA.customBuilderOptions.proteins, 'protein', state.customRoll.protein.id);
     renderChipGroup(fillingOptionsContainer, INDUSHI_DATA.customBuilderOptions.fillings, 'filling', state.customRoll.filling.id);
@@ -314,7 +681,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateBuilderPreview();
 
-    // Add custom roll button
     addCustomRollBtn.addEventListener('click', () => {
       const customItem = {
         id: 'custom-' + Date.now(),
@@ -326,7 +692,6 @@ document.addEventListener('DOMContentLoaded', () => {
         isCustom: true
       };
       addToCart(customItem);
-      showToast(`Custom ${customItem.name} added to cart! 🔥`, 'success');
     });
   }
 
@@ -369,7 +734,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const total = calculateCustomTotal();
     customTotalPrice.textContent = `IDR ${total.toLocaleString()}`;
 
-    // Update Visual Representation
     if (sushiVisual) {
       if (torch.id === 'l2') {
         sushiVisual.style.boxShadow = 'inset 0 0 15px rgba(0,0,0,0.8), 0 0 30px rgba(232,80,29,0.8)';
@@ -381,7 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- CATERING & TESTIMONIALS RENDERING ---
+  // --- CATERING & TESTIMONIALS ---
   function renderPlatters() {
     platterGrid.innerHTML = INDUSHI_DATA.cateringPlatters.map(plat => `
       <div class="platter-card">
@@ -431,14 +795,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- CART & MODAL SYSTEM ---
   function initCartAndModals() {
-    // Open/Close Cart
     openCartBtn.addEventListener('click', () => cartOverlay.classList.add('active'));
     closeCartBtn.addEventListener('click', () => cartOverlay.classList.remove('active'));
     cartOverlay.addEventListener('click', (e) => {
       if (e.target === cartOverlay) cartOverlay.classList.remove('active');
     });
 
-    // Proceed to Checkout
     proceedCheckoutBtn.addEventListener('click', () => {
       if (state.cart.length === 0) {
         showToast('Your order cart is empty!', 'error');
@@ -453,7 +815,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.target === checkoutModal) checkoutModal.classList.remove('active');
     });
 
-    // Payment method selector buttons
     payMethodBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         payMethodBtns.forEach(b => b.classList.remove('active'));
@@ -468,19 +829,47 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Submit Checkout
+    // Customer Checkout Form Submit -> Saves Order to Admin State!
     checkoutForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      const custName = document.getElementById('custName').value;
+      const custName = document.getElementById('custName').value.trim();
+      const custPhone = document.getElementById('custPhone').value.trim();
+      const custAddress = document.getElementById('custAddress').value.trim();
+      const activePayBtn = document.querySelector('.pay-method-btn.active');
+      const payMethod = activePayBtn ? activePayBtn.getAttribute('data-pay').toUpperCase() : 'QRIS';
+
+      const cartTotal = state.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+      const itemsSummary = state.cart.map(i => `${i.qty}x ${i.name}`).join(', ');
+
+      const newOrder = {
+        id: 'ORD-' + Math.floor(1000 + Math.random() * 9000),
+        customer: custName,
+        phone: custPhone,
+        address: custAddress,
+        items: itemsSummary,
+        total: cartTotal,
+        paymentMethod: payMethod,
+        status: 'Pending',
+        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+      };
+
+      state.orders.unshift(newOrder);
+      saveOrders();
+
       checkoutModal.classList.remove('active');
       state.cart = [];
       saveCart();
       updateCartUI();
 
-      showToast(`🎉 Thank you ${custName}! Order confirmed. Dispatching courier...`, 'success');
+      if (adminDashboardModal.classList.contains('active')) {
+        renderAdminOverview();
+        renderAdminOrders();
+      }
+
+      showToast(`🎉 Thank you ${custName}! Order ${newOrder.id} confirmed. Dispatching courier...`, 'success');
     });
 
-    // Booking Table Modal
+    // Booking Table Modal Submit -> Saves Booking to Admin State!
     const openBooking = () => bookingModal.classList.add('active');
     const closeBooking = () => bookingModal.classList.remove('active');
 
@@ -491,18 +880,35 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.target === bookingModal) closeBooking();
     });
 
-    if (orderNowNavBtn) {
-      orderNowNavBtn.addEventListener('click', () => {
-        document.getElementById('menu').scrollIntoView({ behavior: 'smooth' });
-      });
-    }
-
     bookingForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      const name = document.getElementById('bookName').value;
+      const name = document.getElementById('bookName').value.trim();
+      const email = document.getElementById('bookEmail').value.trim();
       const date = document.getElementById('bookDate').value;
       const time = document.getElementById('bookTime').value;
+      const pax = document.getElementById('bookPax').value + ' Guests';
+
+      const newBooking = {
+        id: 'RSV-' + Math.floor(100 + Math.random() * 900),
+        name,
+        email,
+        date,
+        time,
+        pax,
+        status: 'Confirmed',
+        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+      };
+
+      state.bookings.unshift(newBooking);
+      saveBookings();
+
       closeBooking();
+
+      if (adminDashboardModal.classList.contains('active')) {
+        renderAdminOverview();
+        renderAdminBookings();
+      }
+
       showToast(`Table Reserved for ${name} on ${date} at ${time}! 🍽️`, 'success');
     });
   }
@@ -563,7 +969,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     cartSubtotalAmount.textContent = `IDR ${subtotal.toLocaleString()}`;
 
-    // Attach qty listeners
     cartItemList.querySelectorAll('.qty-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
@@ -584,7 +989,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Remove listener
     cartItemList.querySelectorAll('.remove-cart-item-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
@@ -593,6 +997,533 @@ document.addEventListener('DOMContentLoaded', () => {
         updateCartUI();
       });
     });
+  }
+
+  // --- ADMIN DASHBOARD CONTROLLER ---
+  function openAdminDashboard() {
+    if (!state.user || state.user.role !== 'admin') {
+      showToast('Admin privilege required to access Dashboard!', 'error');
+      if (authModal) authModal.classList.add('active');
+      return;
+    }
+
+    if (adminDashboardModal) adminDashboardModal.classList.add('active');
+    if (adminLoggedName && state.user) adminLoggedName.textContent = state.user.name;
+
+    renderAdminOverview();
+    renderAdminProducts();
+    renderAdminOrders();
+    renderAdminBookings();
+    loadAdminSettingsUI();
+  }
+
+  function initAdminDashboard() {
+    if (closeAdminDashboardBtn) {
+      closeAdminDashboardBtn.addEventListener('click', () => {
+        adminDashboardModal.classList.remove('active');
+      });
+    }
+
+    if (viewLiveSiteBtn) {
+      viewLiveSiteBtn.addEventListener('click', () => {
+        adminDashboardModal.classList.remove('active');
+      });
+    }
+
+    // Sidebar Tab Switches
+    adminNavItems.forEach(item => {
+      item.addEventListener('click', () => {
+        const targetTab = item.getAttribute('data-admin-tab');
+
+        adminNavItems.forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+
+        adminTabContents.forEach(content => {
+          content.classList.remove('active');
+        });
+
+        const activeContent = document.getElementById(`tab-admin-${targetTab}`);
+        if (activeContent) activeContent.classList.add('active');
+
+        // Titles
+        const titleMap = {
+          overview: { title: 'Dashboard Overview', sub: 'Real-time store metrics and control center.' },
+          products: { title: 'Menu & Products Manager', sub: 'Direct live control over sushi items displayed on the website.' },
+          orders: { title: 'Customer Orders Dispatch', sub: 'Manage live checkout orders and delivery status.' },
+          bookings: { title: 'Table Reservations Manager', sub: 'View and manage guest reservations at Senopati location.' },
+          settings: { title: 'Site Banner & Configuration', sub: 'Manage top announcement banner and store operational status.' }
+        };
+
+        if (titleMap[targetTab]) {
+          adminTabTitle.textContent = titleMap[targetTab].title;
+          adminTabSubtitle.textContent = titleMap[targetTab].sub;
+        }
+
+        if (targetTab === 'overview') renderAdminOverview();
+        if (targetTab === 'products') renderAdminProducts();
+        if (targetTab === 'orders') renderAdminOrders();
+        if (targetTab === 'bookings') renderAdminBookings();
+        if (targetTab === 'settings') loadAdminSettingsUI();
+      });
+    });
+
+    // Product Search & Filter in Admin
+    if (adminProductSearch) {
+      adminProductSearch.addEventListener('input', renderAdminProducts);
+    }
+    if (adminCategoryFilter) {
+      adminCategoryFilter.addEventListener('change', renderAdminProducts);
+    }
+
+    // Add Product Modal Triggers
+    if (openAddProductBtn) {
+      openAddProductBtn.addEventListener('click', () => {
+        productForm.reset();
+        editProductIdInput.value = '';
+        productModalHeading.innerHTML = `<i class="fa-solid fa-utensils" style="color:var(--primary-accent);"></i> Add New Sushi Item`;
+        productFormModal.classList.add('active');
+      });
+    }
+
+    if (closeProductFormBtn) {
+      closeProductFormBtn.addEventListener('click', () => {
+        productFormModal.classList.remove('active');
+      });
+    }
+
+    if (productFormModal) {
+      productFormModal.addEventListener('click', (e) => {
+        if (e.target === productFormModal) productFormModal.classList.remove('active');
+      });
+    }
+
+    // Product Form Submit (Add or Edit)
+    if (productForm) {
+      productForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const editId = editProductIdInput.value;
+        const name = document.getElementById('prodFormName').value.trim();
+        const category = document.getElementById('prodFormCategory').value;
+        const price = parseInt(document.getElementById('prodFormPrice').value);
+        const spiceLevel = parseInt(document.getElementById('prodFormSpice').value);
+        const cookingStyle = document.getElementById('prodFormStyle').value;
+        const badge = document.getElementById('prodFormBadge').value.trim();
+        const image = document.getElementById('prodFormImage').value.trim();
+        const description = document.getElementById('prodFormDesc').value.trim();
+
+        if (editId) {
+          // Edit existing
+          const index = state.products.findIndex(p => p.id === editId);
+          if (index > -1) {
+            state.products[index] = {
+              ...state.products[index],
+              name,
+              category,
+              price,
+              formattedPrice: `IDR ${price.toLocaleString()}`,
+              spiceLevel,
+              cookingStyle,
+              badge: badge || null,
+              image,
+              description
+            };
+            showToast(`Product "${name}" updated successfully! ✏️`, 'success');
+          }
+        } else {
+          // Add new
+          const newProd = {
+            id: 'prod-' + Date.now(),
+            name,
+            category,
+            price,
+            formattedPrice: `IDR ${price.toLocaleString()}`,
+            spiceLevel,
+            isCooked: true,
+            cookingStyle,
+            badge: badge || 'New',
+            image,
+            description,
+            ingredients: ['Fresh Ingredients', 'INDUSHI Glaze']
+          };
+          state.products.unshift(newProd);
+          showToast(`New sushi roll "${name}" added to live menu! 🍣`, 'success');
+        }
+
+        saveProducts();
+        renderProducts(); // Updates main website live!
+        renderAdminProducts();
+        renderAdminOverview();
+        productFormModal.classList.remove('active');
+      });
+    }
+
+    // Settings Submit Triggers
+    if (saveBannerSettingsBtn) {
+      saveBannerSettingsBtn.addEventListener('click', () => {
+        state.siteSettings.showAnnouncement = toggleAnnouncementBar.checked;
+        state.siteSettings.announcementText = announcementTextEdit.value.trim();
+        saveSettings();
+        initAnnouncementBar();
+        showToast('Top Site Announcement Banner updated! 📢', 'success');
+      });
+    }
+
+    if (saveStoreStatusBtn) {
+      saveStoreStatusBtn.addEventListener('click', () => {
+        state.siteSettings.isStoreOpen = toggleStoreOpen.checked;
+        saveSettings();
+        showToast(`Store Operational Status saved (${toggleStoreOpen.checked ? 'OPEN' : 'CLOSED'})! 🏪`, 'success');
+      });
+    }
+
+    // Reset Factory Default
+    if (resetDataDefaultBtn) {
+      resetDataDefaultBtn.addEventListener('click', () => {
+        if (confirm('Are you sure you want to reset all site products, orders, and settings back to factory defaults?')) {
+          localStorage.removeItem('indushi_products');
+          localStorage.removeItem('indushi_orders');
+          localStorage.removeItem('indushi_bookings');
+          localStorage.removeItem('indushi_settings');
+          localStorage.removeItem('indushi_registered_users');
+
+          state.registeredUsers = [
+            {
+              email: 'admin@indushi.id',
+              password: 'admin123',
+              name: 'Master Admin',
+              role: 'admin'
+            },
+            {
+              email: 'user@indushi.id',
+              password: 'user123',
+              name: 'Sebastian Jefferson',
+              role: 'customer'
+            }
+          ];
+
+          state.products = INITIAL_PRODUCTS;
+          state.orders = [
+            {
+              id: 'ORD-1001',
+              customer: 'Reza Rahardian',
+              phone: '081299887766',
+              address: 'Jl. Senopati No. 42, Jakarta Selatan',
+              items: '1x Rendang Aburi Supreme Roll, 1x Es Cendol Matcha',
+              total: 100000,
+              paymentMethod: 'QRIS',
+              status: 'Delivered',
+              createdAt: '2026-09-04 14:30'
+            }
+          ];
+          state.bookings = [];
+          state.siteSettings = {
+            showAnnouncement: true,
+            announcementText: 'Get 20% OFF on all Signature Rolls with code INDUSHIFUSION20!',
+            isStoreOpen: true
+          };
+
+          renderProducts();
+          initAnnouncementBar();
+          renderAdminOverview();
+          renderAdminProducts();
+          renderAdminOrders();
+          renderAdminBookings();
+          loadAdminSettingsUI();
+
+          showToast('All site data has been reset to factory defaults! 🔄', 'info');
+        }
+      });
+    }
+  }
+
+  // --- RENDER ADMIN TAB 1: OVERVIEW KPIs ---
+  function renderAdminOverview() {
+    const totalRev = state.orders
+      .filter(o => o.status !== 'Cancelled')
+      .reduce((sum, o) => sum + (o.total || 0), 0);
+
+    const pendingOrders = state.orders.filter(o => o.status === 'Pending').length;
+    const confirmedBookings = state.bookings.filter(b => b.status === 'Confirmed').length;
+
+    document.getElementById('kpiRevenue').textContent = `IDR ${totalRev.toLocaleString()}`;
+    document.getElementById('kpiOrdersCount').textContent = state.orders.length;
+    document.getElementById('kpiOrdersPending').textContent = `${pendingOrders} Pending Dispatch`;
+    document.getElementById('kpiProductsCount').textContent = state.products.length;
+    document.getElementById('kpiBookingsCount').textContent = state.bookings.length;
+    document.getElementById('kpiBookingsConfirmed').textContent = `${confirmedBookings} Confirmed Seats`;
+
+    document.getElementById('adminOrdersBadge').textContent = pendingOrders;
+    document.getElementById('adminBookingsBadge').textContent = confirmedBookings;
+
+    // Recent 5 Orders
+    const recentOrders = state.orders.slice(0, 5);
+    const overviewRecentOrders = document.getElementById('overviewRecentOrders');
+    if (recentOrders.length === 0) {
+      overviewRecentOrders.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No recent orders</td></tr>`;
+    } else {
+      overviewRecentOrders.innerHTML = recentOrders.map(o => `
+        <tr>
+          <td><strong>${o.customer}</strong><br><span style="font-size:0.75rem; color:var(--text-muted);">${o.id}</span></td>
+          <td>IDR ${(o.total || 0).toLocaleString()}</td>
+          <td><span class="badge-status ${getBadgeStatusClass(o.status)}">${o.status}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    // Recent 5 Bookings
+    const recentBookings = state.bookings.slice(0, 5);
+    const overviewRecentBookings = document.getElementById('overviewRecentBookings');
+    if (recentBookings.length === 0) {
+      overviewRecentBookings.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No upcoming bookings</td></tr>`;
+    } else {
+      overviewRecentBookings.innerHTML = recentBookings.map(b => `
+        <tr>
+          <td><strong>${b.name}</strong><br><span style="font-size:0.75rem; color:var(--text-muted);">${b.id}</span></td>
+          <td>${b.date} • ${b.time}</td>
+          <td>${b.pax}</td>
+        </tr>
+      `).join('');
+    }
+  }
+
+  function getBadgeStatusClass(status) {
+    if (status === 'Pending') return 'badge-pending';
+    if (status === 'Cooking' || status === 'Confirmed') return 'badge-cooking';
+    if (status === 'Delivered' || status === 'Seated') return 'badge-delivered';
+    return 'badge-cancelled';
+  }
+
+  // --- RENDER ADMIN TAB 2: PRODUCTS MANAGER ---
+  function renderAdminProducts() {
+    const searchTerm = adminProductSearch ? adminProductSearch.value.toLowerCase() : '';
+    const catFilter = adminCategoryFilter ? adminCategoryFilter.value : 'all';
+
+    let filtered = state.products;
+
+    if (catFilter !== 'all') {
+      filtered = filtered.filter(p => p.category === catFilter);
+    }
+
+    if (searchTerm) {
+      filtered = filtered.filter(p => p.name.toLowerCase().includes(searchTerm) || p.description.toLowerCase().includes(searchTerm));
+    }
+
+    if (filtered.length === 0) {
+      adminProductsTableBody.innerHTML = `
+        <tr>
+          <td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">
+            No menu products found. Click "Add New Sushi Item" to create one!
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    adminProductsTableBody.innerHTML = filtered.map(p => `
+      <tr>
+        <td><img src="${p.image}" alt="${p.name}" class="table-img"></td>
+        <td>
+          <strong>${p.name}</strong>
+          ${p.badge ? `<span style="font-size:0.7rem; background:rgba(232,80,29,0.2); color:var(--secondary-accent); padding:0.1rem 0.4rem; border-radius:4px; margin-left:0.4rem;">${p.badge}</span>` : ''}
+        </td>
+        <td style="text-transform:capitalize;">${p.category}</td>
+        <td style="font-weight:700; color:var(--secondary-accent);">IDR ${(p.price || 0).toLocaleString()}</td>
+        <td>${'🔥'.repeat(p.spiceLevel || 0)} (${p.spiceLevel}/5)</td>
+        <td>${p.cookingStyle || 'Cooked'}</td>
+        <td>
+          <div style="display:flex; gap:0.4rem;">
+            <button class="btn btn-secondary btn-edit-prod" data-id="${p.id}" style="padding:0.4rem 0.8rem; font-size:0.75rem;">
+              <i class="fa-solid fa-pen"></i> Edit
+            </button>
+            <button class="btn btn-del-prod" data-id="${p.id}" style="padding:0.4rem 0.8rem; font-size:0.75rem; background:#e74c3c; color:#fff; border-radius:var(--radius-full);">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+
+    // Attach Edit Listeners
+    adminProductsTableBody.querySelectorAll('.btn-edit-prod').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const prod = state.products.find(p => p.id === id);
+        if (!prod) return;
+
+        editProductIdInput.value = prod.id;
+        document.getElementById('prodFormName').value = prod.name;
+        document.getElementById('prodFormCategory').value = prod.category;
+        document.getElementById('prodFormPrice').value = prod.price;
+        document.getElementById('prodFormSpice').value = prod.spiceLevel || 0;
+        document.getElementById('prodFormStyle').value = prod.cookingStyle || '100% Cooked';
+        document.getElementById('prodFormBadge').value = prod.badge || '';
+        document.getElementById('prodFormImage').value = prod.image;
+        document.getElementById('prodFormDesc').value = prod.description;
+
+        productModalHeading.innerHTML = `<i class="fa-solid fa-pen-to-square" style="color:var(--primary-accent);"></i> Edit Sushi Item`;
+        productFormModal.classList.add('active');
+      });
+    });
+
+    // Attach Delete Listeners
+    adminProductsTableBody.querySelectorAll('.btn-del-prod').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const prod = state.products.find(p => p.id === id);
+        if (!prod) return;
+
+        if (confirm(`Are you sure you want to delete "${prod.name}" from the website menu?`)) {
+          state.products = state.products.filter(p => p.id !== id);
+          saveProducts();
+          renderProducts(); // Updates main site!
+          renderAdminProducts();
+          renderAdminOverview();
+          showToast(`Deleted "${prod.name}" from menu.`, 'info');
+        }
+      });
+    });
+  }
+
+  // --- RENDER ADMIN TAB 3: ORDERS DISPATCH ---
+  function renderAdminOrders() {
+    const adminOrdersTableBody = document.getElementById('adminOrdersTableBody');
+    const ordersTotalCount = document.getElementById('ordersTotalCount');
+
+    ordersTotalCount.textContent = `${state.orders.length} Total Orders`;
+
+    if (state.orders.length === 0) {
+      adminOrdersTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No customer orders yet.</td></tr>`;
+      return;
+    }
+
+    adminOrdersTableBody.innerHTML = state.orders.map(o => `
+      <tr>
+        <td><strong>${o.id}</strong><br><span style="font-size:0.75rem; color:var(--text-muted);">${o.createdAt}</span></td>
+        <td>
+          <strong>${o.customer}</strong><br>
+          <span style="font-size:0.75rem; color:var(--text-muted);"><i class="fa-solid fa-phone"></i> ${o.phone}</span><br>
+          <span style="font-size:0.75rem; color:var(--text-muted);"><i class="fa-solid fa-location-dot"></i> ${o.address}</span>
+        </td>
+        <td style="max-width:220px; font-size:0.8rem;">${o.items}</td>
+        <td style="font-weight:700; color:var(--secondary-accent);">IDR ${(o.total || 0).toLocaleString()}</td>
+        <td><span style="font-weight:700; font-size:0.8rem; background:rgba(255,255,255,0.08); padding:0.2rem 0.6rem; border-radius:4px;">${o.paymentMethod}</span></td>
+        <td>
+          <select class="admin-select order-status-select" data-id="${o.id}">
+            <option value="Pending" ${o.status === 'Pending' ? 'selected' : ''}>Pending</option>
+            <option value="Cooking" ${o.status === 'Cooking' ? 'selected' : ''}>Cooking / Prep</option>
+            <option value="Delivered" ${o.status === 'Delivered' ? 'selected' : ''}>Delivered</option>
+            <option value="Cancelled" ${o.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
+          </select>
+        </td>
+        <td>
+          <button class="btn btn-del-order" data-id="${o.id}" style="padding:0.3rem 0.6rem; font-size:0.75rem; background:rgba(231, 76, 60, 0.2); color:#e74c3c; border-radius:var(--radius-full);">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+
+    // Attach Status Select Listener
+    adminOrdersTableBody.querySelectorAll('.order-status-select').forEach(select => {
+      select.addEventListener('change', (e) => {
+        const id = select.getAttribute('data-id');
+        const newStatus = e.target.value;
+        const order = state.orders.find(o => o.id === id);
+        if (order) {
+          order.status = newStatus;
+          saveOrders();
+          renderAdminOverview();
+          showToast(`Order ${id} status updated to ${newStatus}! 📦`, 'success');
+        }
+      });
+    });
+
+    // Delete Order Listener
+    adminOrdersTableBody.querySelectorAll('.btn-del-order').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        if (confirm(`Delete record for Order ${id}?`)) {
+          state.orders = state.orders.filter(o => o.id !== id);
+          saveOrders();
+          renderAdminOrders();
+          renderAdminOverview();
+          showToast(`Order ${id} deleted.`, 'info');
+        }
+      });
+    });
+  }
+
+  // --- RENDER ADMIN TAB 4: TABLE BOOKINGS ---
+  function renderAdminBookings() {
+    const adminBookingsTableBody = document.getElementById('adminBookingsTableBody');
+    const bookingsTotalCount = document.getElementById('bookingsTotalCount');
+
+    bookingsTotalCount.textContent = `${state.bookings.length} Total Bookings`;
+
+    if (state.bookings.length === 0) {
+      adminBookingsTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No table reservations yet.</td></tr>`;
+      return;
+    }
+
+    adminBookingsTableBody.innerHTML = state.bookings.map(b => `
+      <tr>
+        <td><strong>${b.id}</strong><br><span style="font-size:0.75rem; color:var(--text-muted);">${b.createdAt}</span></td>
+        <td>
+          <strong>${b.name}</strong><br>
+          <span style="font-size:0.75rem; color:var(--text-muted);"><i class="fa-solid fa-envelope"></i> ${b.email}</span>
+        </td>
+        <td>${b.date}</td>
+        <td>${b.time}</td>
+        <td><span style="font-weight:700;">${b.pax}</span></td>
+        <td>
+          <select class="admin-select booking-status-select" data-id="${b.id}">
+            <option value="Confirmed" ${b.status === 'Confirmed' ? 'selected' : ''}>Confirmed</option>
+            <option value="Seated" ${b.status === 'Seated' ? 'selected' : ''}>Guest Seated</option>
+            <option value="Cancelled" ${b.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
+          </select>
+        </td>
+        <td>
+          <button class="btn btn-del-booking" data-id="${b.id}" style="padding:0.3rem 0.6rem; font-size:0.75rem; background:rgba(231, 76, 60, 0.2); color:#e74c3c; border-radius:var(--radius-full);">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+
+    adminBookingsTableBody.querySelectorAll('.booking-status-select').forEach(select => {
+      select.addEventListener('change', (e) => {
+        const id = select.getAttribute('data-id');
+        const newStatus = e.target.value;
+        const booking = state.bookings.find(b => b.id === id);
+        if (booking) {
+          booking.status = newStatus;
+          saveBookings();
+          renderAdminOverview();
+          showToast(`Reservation ${id} updated to ${newStatus}! 🍽️`, 'success');
+        }
+      });
+    });
+
+    adminBookingsTableBody.querySelectorAll('.btn-del-booking').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        if (confirm(`Delete reservation record ${id}?`)) {
+          state.bookings = state.bookings.filter(b => b.id !== id);
+          saveBookings();
+          renderAdminBookings();
+          renderAdminOverview();
+          showToast(`Reservation ${id} deleted.`, 'info');
+        }
+      });
+    });
+  }
+
+  // --- RENDER ADMIN TAB 5: SITE SETTINGS ---
+  function loadAdminSettingsUI() {
+    if (toggleAnnouncementBar) toggleAnnouncementBar.checked = state.siteSettings.showAnnouncement;
+    if (announcementTextEdit) announcementTextEdit.value = state.siteSettings.announcementText;
+    if (toggleStoreOpen) toggleStoreOpen.checked = state.siteSettings.isStoreOpen;
   }
 
   // --- TOAST UTILITY ---
