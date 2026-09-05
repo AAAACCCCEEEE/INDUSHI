@@ -20,6 +20,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- STATE MANAGEMENT ---
   const state = {
     user: JSON.parse(localStorage.getItem('indushi_user')) || null,
+    registeredUserList: JSON.parse(localStorage.getItem('indushi_registered_user_list')) || [
+      {
+        uid: 'seed-admin-01',
+        name: 'Master Admin',
+        email: 'admin@indushi.id',
+        role: 'admin',
+        status: 'active',
+        createdAt: '2026-09-01 10:00'
+      },
+      {
+        uid: 'seed-user-01',
+        name: 'Sebastian Jefferson',
+        email: 'user@indushi.id',
+        role: 'customer',
+        status: 'active',
+        createdAt: '2026-09-02 12:00'
+      }
+    ],
     products: JSON.parse(localStorage.getItem('indushi_products')) || INITIAL_PRODUCTS,
     orders: JSON.parse(localStorage.getItem('indushi_orders')) || [
       {
@@ -80,6 +98,9 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // --- STATE SAVERS ---
+  function saveRegisteredUserList() {
+    localStorage.setItem('indushi_registered_user_list', JSON.stringify(state.registeredUserList));
+  }
   function saveProducts() {
     localStorage.setItem('indushi_products', JSON.stringify(state.products));
   }
@@ -282,31 +303,45 @@ document.addEventListener('DOMContentLoaded', () => {
           const userSnap = await getDoc(userDocRef);
 
           let name = firebaseUser.displayName || firebaseUser.email.split('@')[0];
-          let role = firebaseUser.email.toLowerCase().includes('admin') ? 'admin' : 'customer';
+          let role = 'customer';
+          let status = 'pending';
+
+          // Check if recorded in local list or Firestore
+          const localRecord = state.registeredUserList.find(u => u.uid === firebaseUser.uid || u.email.toLowerCase() === firebaseUser.email.toLowerCase());
 
           if (userSnap.exists()) {
             const data = userSnap.data();
             if (data.name) name = data.name;
             if (data.role) role = data.role;
-          } else {
-            // Save initial user profile to Firestore
-            await setDoc(userDocRef, {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              name,
-              role,
-              createdAt: new Date().toISOString()
-            });
+            if (data.status) status = data.status;
+          } else if (localRecord) {
+            name = localRecord.name;
+            role = localRecord.role;
+            status = localRecord.status;
           }
 
-          state.user = { uid: firebaseUser.uid, email: firebaseUser.email, name, role };
+          // Special check for seed admin account
+          if (firebaseUser.email.toLowerCase() === 'admin@indushi.id') {
+            role = 'admin';
+            status = 'active';
+          }
+
+          // Strict verification guard: Non-admin users MUST be approved by Admin!
+          if (role !== 'admin' && status !== 'active') {
+            await signOut(auth);
+            state.user = null;
+            saveUser();
+            updateUserNavUI();
+            showToast('⏳ Your account is pending Admin approval. Please wait for an admin to verify your account before logging in.', 'error');
+            return;
+          }
+
+          state.user = { uid: firebaseUser.uid, email: firebaseUser.email, name, role, status };
           saveUser();
           updateUserNavUI();
         } catch (err) {
           console.warn("Firestore sync note:", err);
-          let role = firebaseUser.email.toLowerCase().includes('admin') ? 'admin' : 'customer';
-          let name = firebaseUser.email.split('@')[0];
-          state.user = { uid: firebaseUser.uid, email: firebaseUser.email, name, role };
+          state.user = null;
           saveUser();
           updateUserNavUI();
         }
@@ -325,17 +360,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const password = document.getElementById('loginPassword').value;
 
         try {
-          showToast('Signing in with Firebase...', 'info');
+          showToast('Authenticating with Firebase...', 'info');
           const userCredential = await signInWithEmailAndPassword(auth, email, password);
           const fbUser = userCredential.user;
 
           if (authModal) authModal.classList.remove('active');
-          showToast(`Welcome back! Logged in to Firebase 👋`, 'success');
 
-          if (email.toLowerCase().includes('admin')) {
+          // Check if admin to open dashboard
+          if (email.toLowerCase() === 'admin@indushi.id') {
+            showToast('Welcome Master Admin! Opening Admin Panel... 🛡️', 'success');
             setTimeout(() => {
               openAdminDashboard();
             }, 400);
+          } else {
+            showToast(`Welcome back! Logged in successfully. 👋`, 'success');
           }
         } catch (error) {
           console.error("Firebase Login Error:", error);
@@ -354,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Register Form Submit -> Firebase Auth Create User + Firestore Entry
+    // Register Form Submit -> Firebase Auth Create User (Always role: customer, status: pending)
     if (registerForm) {
       registerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -363,37 +401,55 @@ document.addEventListener('DOMContentLoaded', () => {
         const password = document.getElementById('regPassword').value;
 
         try {
-          showToast('Registering user in Firebase Auth...', 'info');
+          showToast('Submitting registration request to Firebase...', 'info');
           const userCredential = await createUserWithEmailAndPassword(auth, email, password);
           const fbUser = userCredential.user;
 
-          const role = email.toLowerCase().includes('admin') ? 'admin' : 'customer';
+          // Always set role as customer and status as pending!
+          const role = 'customer';
+          const status = 'pending';
+          const createdAt = new Date().toISOString().replace('T', ' ').substring(0, 16);
 
-          // Save user data to Firebase Firestore
+          // Save user profile to Firestore
           try {
             await setDoc(doc(db, "users", fbUser.uid), {
               uid: fbUser.uid,
               email: email,
               name: name,
               role: role,
-              createdAt: new Date().toISOString()
+              status: status,
+              createdAt: createdAt
             });
           } catch (fsErr) {
             console.warn("Firestore user creation note:", fsErr);
           }
 
-          state.user = { uid: fbUser.uid, email, name, role };
+          // Save to local registered list as pending
+          const newUserRecord = {
+            uid: fbUser.uid,
+            name,
+            email,
+            role,
+            status,
+            createdAt
+          };
+
+          const existingIdx = state.registeredUserList.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+          if (existingIdx > -1) {
+            state.registeredUserList[existingIdx] = newUserRecord;
+          } else {
+            state.registeredUserList.unshift(newUserRecord);
+          }
+          saveRegisteredUserList();
+
+          // Immediately sign out since account requires admin verification
+          await signOut(auth);
+          state.user = null;
           saveUser();
           updateUserNavUI();
 
           if (authModal) authModal.classList.remove('active');
-          showToast(`User created & saved to Firebase! Welcome ${name} 🎉`, 'success');
-
-          if (role === 'admin') {
-            setTimeout(() => {
-              openAdminDashboard();
-            }, 400);
-          }
+          showToast(`🎉 Registration request submitted! Your account is now pending Admin approval.`, 'success');
         } catch (error) {
           console.error("Firebase Register Error:", error);
           let msg = 'Failed to register account in Firebase.';
@@ -1014,6 +1070,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAdminProducts();
     renderAdminOrders();
     renderAdminBookings();
+    renderAdminUsers();
     loadAdminSettingsUI();
   }
 
@@ -1051,6 +1108,7 @@ document.addEventListener('DOMContentLoaded', () => {
           products: { title: 'Menu & Products Manager', sub: 'Direct live control over sushi items displayed on the website.' },
           orders: { title: 'Customer Orders Dispatch', sub: 'Manage live checkout orders and delivery status.' },
           bookings: { title: 'Table Reservations Manager', sub: 'View and manage guest reservations at Senopati location.' },
+          users: { title: 'User Accounts & Verification Manager', sub: 'Approve or reject customer account registration requests to prevent spam.' },
           settings: { title: 'Site Banner & Configuration', sub: 'Manage top announcement banner and store operational status.' }
         };
 
@@ -1063,6 +1121,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (targetTab === 'products') renderAdminProducts();
         if (targetTab === 'orders') renderAdminOrders();
         if (targetTab === 'bookings') renderAdminBookings();
+        if (targetTab === 'users') renderAdminUsers();
         if (targetTab === 'settings') loadAdminSettingsUI();
       });
     });
@@ -1185,20 +1244,24 @@ document.addEventListener('DOMContentLoaded', () => {
           localStorage.removeItem('indushi_orders');
           localStorage.removeItem('indushi_bookings');
           localStorage.removeItem('indushi_settings');
-          localStorage.removeItem('indushi_registered_users');
+          localStorage.removeItem('indushi_registered_user_list');
 
-          state.registeredUsers = [
+          state.registeredUserList = [
             {
-              email: 'admin@indushi.id',
-              password: 'admin123',
+              uid: 'seed-admin-01',
               name: 'Master Admin',
-              role: 'admin'
+              email: 'admin@indushi.id',
+              role: 'admin',
+              status: 'active',
+              createdAt: '2026-09-01 10:00'
             },
             {
-              email: 'user@indushi.id',
-              password: 'user123',
+              uid: 'seed-user-01',
               name: 'Sebastian Jefferson',
-              role: 'customer'
+              email: 'user@indushi.id',
+              role: 'customer',
+              status: 'active',
+              createdAt: '2026-09-02 12:00'
             }
           ];
 
@@ -1229,6 +1292,7 @@ document.addEventListener('DOMContentLoaded', () => {
           renderAdminProducts();
           renderAdminOrders();
           renderAdminBookings();
+          renderAdminUsers();
           loadAdminSettingsUI();
 
           showToast('All site data has been reset to factory defaults! 🔄', 'info');
@@ -1245,6 +1309,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const pendingOrders = state.orders.filter(o => o.status === 'Pending').length;
     const confirmedBookings = state.bookings.filter(b => b.status === 'Confirmed').length;
+    const pendingUsers = state.registeredUserList.filter(u => u.role !== 'admin' && u.status === 'pending').length;
 
     document.getElementById('kpiRevenue').textContent = `IDR ${totalRev.toLocaleString()}`;
     document.getElementById('kpiOrdersCount').textContent = state.orders.length;
@@ -1255,6 +1320,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('adminOrdersBadge').textContent = pendingOrders;
     document.getElementById('adminBookingsBadge').textContent = confirmedBookings;
+    
+    const adminUsersBadge = document.getElementById('adminUsersBadge');
+    if (adminUsersBadge) adminUsersBadge.textContent = pendingUsers;
 
     // Recent 5 Orders
     const recentOrders = state.orders.slice(0, 5);
@@ -1285,6 +1353,104 @@ document.addEventListener('DOMContentLoaded', () => {
         </tr>
       `).join('');
     }
+  }
+
+  // --- RENDER ADMIN TAB 5: USER VERIFICATIONS ---
+  function renderAdminUsers() {
+    const adminUsersTableBody = document.getElementById('adminUsersTableBody');
+    const usersTotalCount = document.getElementById('usersTotalCount');
+
+    if (!adminUsersTableBody) return;
+
+    if (usersTotalCount) {
+      usersTotalCount.textContent = `${state.registeredUserList.length} Registered Accounts`;
+    }
+
+    const pendingCount = state.registeredUserList.filter(u => u.role !== 'admin' && u.status === 'pending').length;
+    const adminUsersBadge = document.getElementById('adminUsersBadge');
+    if (adminUsersBadge) adminUsersBadge.textContent = pendingCount;
+
+    if (state.registeredUserList.length === 0) {
+      adminUsersTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:2rem; color:var(--text-muted);">No user registration records found.</td></tr>`;
+      return;
+    }
+
+    adminUsersTableBody.innerHTML = state.registeredUserList.map(u => `
+      <tr>
+        <td><strong>${u.name}</strong></td>
+        <td>${u.email}</td>
+        <td><span style="text-transform:uppercase; font-size:0.75rem; font-weight:800; padding:0.15rem 0.5rem; border-radius:4px; background:${u.role === 'admin' ? 'rgba(232,80,29,0.2)' : 'rgba(255,255,255,0.08)'}; color:${u.role === 'admin' ? 'var(--primary-accent)' : '#fff'};">${u.role}</span></td>
+        <td style="font-size:0.8rem; color:var(--text-muted);">${u.createdAt || 'N/A'}</td>
+        <td>
+          ${u.role === 'admin' ? '<span class="badge-status badge-cooking">Admin</span>' :
+            (u.status === 'active' ? '<span class="badge-status badge-delivered"><i class="fa-solid fa-circle-check"></i> Verified</span>' :
+            '<span class="badge-status badge-pending"><i class="fa-solid fa-hourglass-half"></i> Pending Approval</span>')}
+        </td>
+        <td>
+          ${u.role === 'admin' ? '<span style="font-size:0.75rem; color:var(--text-muted);">Protected Master</span>' : `
+            <div style="display:flex; gap:0.4rem;">
+              ${u.status !== 'active' ? `
+                <button class="btn btn-approve-user" data-id="${u.uid}" data-email="${u.email}" style="padding:0.3rem 0.7rem; font-size:0.75rem; background:#2ecc71; color:#fff; border-radius:var(--radius-full);">
+                  <i class="fa-solid fa-check"></i> Approve
+                </button>
+              ` : ''}
+              <button class="btn btn-reject-user" data-id="${u.uid}" data-email="${u.email}" style="padding:0.3rem 0.7rem; font-size:0.75rem; background:rgba(231, 76, 60, 0.2); color:#e74c3c; border-radius:var(--radius-full);" title="${u.status === 'pending' ? 'Reject & Delete Account' : 'Revoke & Delete Account'}">
+                <i class="fa-solid fa-trash"></i> ${u.status === 'pending' ? 'Reject' : 'Delete'}
+              </button>
+            </div>
+          `}
+        </td>
+      </tr>
+    `).join('');
+
+    // Approve user listener
+    adminUsersTableBody.querySelectorAll('.btn-approve-user').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const uid = btn.getAttribute('data-id');
+        const email = btn.getAttribute('data-email');
+        const targetUser = state.registeredUserList.find(u => u.uid === uid || u.email === email);
+
+        if (targetUser) {
+          targetUser.status = 'active';
+          saveRegisteredUserList();
+
+          // Sync status to Firestore
+          try {
+            await setDoc(doc(db, "users", uid), { status: 'active' }, { merge: true });
+          } catch (e) {
+            console.warn("Firestore status approve update note:", e);
+          }
+
+          renderAdminUsers();
+          renderAdminOverview();
+          showToast(`User ${email} approved! Account is now active. ✅`, 'success');
+        }
+      });
+    });
+
+    // Reject / Delete user listener
+    adminUsersTableBody.querySelectorAll('.btn-reject-user').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const uid = btn.getAttribute('data-id');
+        const email = btn.getAttribute('data-email');
+
+        if (confirm(`Are you sure you want to reject/delete registration for ${email}? This frees up storage and prevents spam.`)) {
+          state.registeredUserList = state.registeredUserList.filter(u => u.uid !== uid && u.email !== email);
+          saveRegisteredUserList();
+
+          // Delete/reject status in Firestore
+          try {
+            await setDoc(doc(db, "users", uid), { status: 'rejected' }, { merge: true });
+          } catch (e) {
+            console.warn("Firestore user reject note:", e);
+          }
+
+          renderAdminUsers();
+          renderAdminOverview();
+          showToast(`Account for ${email} deleted to prevent storage waste. 🗑️`, 'info');
+        }
+      });
+    });
   }
 
   function getBadgeStatusClass(status) {

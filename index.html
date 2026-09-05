@@ -736,6 +736,11 @@
             <span>Table Bookings</span>
             <span class="admin-badge-count" id="adminBookingsBadge">0</span>
           </button>
+          <button class="admin-nav-item" data-admin-tab="users">
+            <i class="fa-solid fa-user-check"></i>
+            <span>User Verifications</span>
+            <span class="admin-badge-count" id="adminUsersBadge">0</span>
+          </button>
           <button class="admin-nav-item" data-admin-tab="settings">
             <i class="fa-solid fa-sliders"></i>
             <span>Site Banner & Config</span>
@@ -966,7 +971,37 @@
             </div>
           </div>
 
-          <!-- TAB 5: SITE BANNER & SETTINGS -->
+          <!-- TAB 5: USER ACCOUNTS & VERIFICATION MANAGER -->
+          <div class="admin-tab-content" id="tab-admin-users">
+            <div class="admin-card-box">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <h3 style="font-size:1.1rem;"><i class="fa-solid fa-user-shield" style="color:var(--primary-accent);"></i> Registered User Accounts & Verification</h3>
+                <span style="font-size:0.85rem; color:var(--text-muted);" id="usersTotalCount">0 Total Registered</span>
+              </div>
+              <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem;">
+                New customer accounts require Admin approval before they can log in. Rejecting an unapproved account deletes it to clean up storage and prevent spam.
+              </p>
+              <div class="table-responsive">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>User Name</th>
+                      <th>Email Address</th>
+                      <th>Role</th>
+                      <th>Registered At</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminUsersTableBody">
+                    <!-- Injected via JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 6: SITE BANNER & SETTINGS -->
           <div class="admin-tab-content" id="tab-admin-settings">
             <div style="max-width:800px; display:grid; gap:1.5rem;">
               
