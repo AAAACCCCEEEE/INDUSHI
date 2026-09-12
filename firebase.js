@@ -1,6 +1,6 @@
 // Firebase Initialization Module for INDUSHI
 import { initializeApp } from "firebase/app";
-import { getAnalytics, isSupported } from "firebase/analytics";
+import { getAnalytics, isSupported, logEvent } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -30,5 +30,20 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export { app, auth, db, analytics, firebaseConfig };
+function trackPageView(pagePath, pageTitle) {
+  if (analytics) {
+    try {
+      logEvent(analytics, 'page_view', {
+        page_path: pagePath,
+        page_title: pageTitle,
+        page_location: window.location.href
+      });
+    } catch (err) {
+      console.debug("Firebase Analytics page_view track:", err);
+    }
+  }
+}
+
+export { app, auth, db, analytics, firebaseConfig, trackPageView };
+
 

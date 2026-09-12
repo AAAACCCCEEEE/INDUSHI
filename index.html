@@ -45,22 +45,27 @@
       </a>
 
       <ul class="nav-links" id="navLinks">
-        <li><a href="#home" class="nav-link active">Home</a></li>
+        <li><a href="#/home" class="nav-link active">Home</a></li>
         <li class="nav-item-dropdown">
-          <a href="#menu" class="nav-link dropdown-toggle" id="menuDropdownToggle">
+          <a href="#/menu" class="nav-link dropdown-toggle" id="menuDropdownToggle">
             Menu <i class="fa-solid fa-chevron-down dropdown-arrow"></i>
           </a>
           <ul class="dropdown-menu" id="menuDropdown">
-            <li><a href="#menu" class="dropdown-item"><i class="fa-solid fa-utensils"></i> Signatures</a></li>
-            <li><a href="#builder" class="dropdown-item"><i class="fa-solid fa-sliders"></i> Custom Builder</a></li>
-            <li><a href="#platters" class="dropdown-item"><i class="fa-solid fa-boxes-stacked"></i> Platter Towers</a></li>
+            <li><a href="#/menu" class="dropdown-item"><i class="fa-solid fa-utensils"></i> Signatures</a></li>
+            <li><a href="#/builder" class="dropdown-item"><i class="fa-solid fa-sliders"></i> Custom Builder</a></li>
+            <li><a href="#/platters" class="dropdown-item"><i class="fa-solid fa-boxes-stacked"></i> Platter Towers</a></li>
           </ul>
         </li>
-        <li><a href="#story" class="nav-link">Our Story</a></li>
-        <li><a href="#qa" class="nav-link">QA & Bugs</a></li>
+        <li><a href="#/story" class="nav-link">Our Story</a></li>
+        <li><a href="#/qa" class="nav-link">QA & Bugs</a></li>
       </ul>
 
       <div class="nav-actions">
+        <button class="btn btn-outline nav-routes-btn" id="openRoutesModalNavBtn" title="Track & Explore All Pages (Ctrl+K)">
+          <i class="fa-solid fa-map-location-dot"></i>
+          <span class="btn-text">Routes</span>
+        </button>
+
         <button class="btn btn-outline nav-book-btn" id="bookTableNavBtn" title="Book a Table">
           <i class="fa-solid fa-calendar-check"></i>
           <span class="btn-text">Book Table</span>
@@ -103,10 +108,10 @@
             Experience 12-hour braised Rendang, flame-torched Aburi glazes, and Balinese Sambal Matah wrapped in fragrant Nasi Uduk. No raw seafood—just rich home-cooked comfort.
           </p>
           <div class="hero-actions">
-            <a href="#menu" class="btn btn-primary">
+            <a href="#/menu" class="btn btn-primary">
               <i class="fa-solid fa-utensils"></i> Explore Menu
             </a>
-            <a href="#builder" class="btn btn-secondary">
+            <a href="#/builder" class="btn btn-secondary">
               <i class="fa-solid fa-sliders"></i> Roll Your Own
             </a>
           </div>
@@ -138,7 +143,7 @@
             The Ayam Geprek Mozza Roll brings crunchy garlic-chili smashed chicken with molten cheese, flame-torched to perfection right before delivery.
           </p>
           <div class="hero-actions">
-            <a href="#menu" class="btn btn-primary">
+            <a href="#/menu" class="btn btn-primary">
               <i class="fa-solid fa-fire"></i> Order Ayam Geprek
             </a>
             <button class="btn btn-outline" id="heroBookBtn2">
@@ -173,7 +178,7 @@
             Replace boring sandwich boxes with our 48-piece to 192-piece INDUSHI Sushi Platter Towers. Clean, visual finger food for memorable events.
           </p>
           <div class="hero-actions">
-            <a href="#platters" class="btn btn-primary">
+            <a href="#/platters" class="btn btn-primary">
               <i class="fa-solid fa-boxes-stacked"></i> View Platter Towers
             </a>
           </div>
@@ -533,11 +538,12 @@
         <div class="footer-col">
           <h4>Navigation</h4>
           <ul class="footer-links">
-            <li><a href="#home">Home</a></li>
-            <li><a href="#signatures">Signatures</a></li>
-            <li><a href="#builder">Custom Builder</a></li>
-            <li><a href="#menu">Full Menu</a></li>
-            <li><a href="#platters">Catering Platters</a></li>
+            <li><a href="#/home">Home</a></li>
+            <li><a href="#/menu">Full Menu & Signatures</a></li>
+            <li><a href="#/builder">Custom Roll Builder</a></li>
+            <li><a href="#/platters">Catering Platters</a></li>
+            <li><a href="#/story">Our Story</a></li>
+            <li><a href="#/routes" style="color:var(--secondary-accent);"><i class="fa-solid fa-map-location-dot"></i> All Routes (Ctrl+K)</a></li>
           </ul>
         </div>
 
@@ -986,14 +992,24 @@
       <main class="admin-main">
         <header class="admin-header">
           <div>
-            <h2 id="adminTabTitle">Dashboard Overview</h2>
+            <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+              <h2 id="adminTabTitle">Dashboard Overview</h2>
+              <span class="route-badge" id="adminRouteBadge" title="Click to copy page route URL">
+                <i class="fa-solid fa-route"></i>
+                <span id="adminRoutePathText">#/admin/overview</span>
+                <i class="fa-solid fa-copy copy-icon"></i>
+              </span>
+            </div>
             <p style="font-size:0.85rem; color:var(--text-muted);" id="adminTabSubtitle">Real-time store metrics and control center.</p>
           </div>
-          <div style="display:flex; align-items:center; gap:1rem;">
+          <div style="display:flex; align-items:center; gap:0.75rem;">
+            <button class="btn btn-outline" id="adminOpenRoutesBtn" title="Explore all tracked routes">
+              <i class="fa-solid fa-map-location-dot"></i> Routes
+            </button>
             <button class="btn btn-outline" id="viewLiveSiteBtn">
               <i class="fa-solid fa-globe"></i> View Live Site
             </button>
-            <button class="close-admin-btn" id="closeAdminDashboardBtn">&times;</button>
+            <button class="close-admin-btn" id="closeAdminDashboardBtn" title="Close Admin Panel">&times;</button>
           </div>
         </header>
 
@@ -1476,6 +1492,45 @@
           <i class="fa-solid fa-floppy-disk"></i> Save Product to Website
         </button>
       </form>
+    </div>
+  </div>
+
+  <!-- Site Routes & Page Navigator Modal (Ctrl + K) -->
+  <div class="modal-overlay" id="routesModal">
+    <div class="modal-box routes-modal-box">
+      <button class="close-modal-btn" id="closeRoutesModalBtn">&times;</button>
+      <div class="routes-modal-header">
+        <h2 style="margin-bottom:0.4rem; display:flex; align-items:center; gap:0.6rem;">
+          <i class="fa-solid fa-map-location-dot" style="color:var(--primary-accent);"></i>
+          Site Routes & Page Navigator
+        </h2>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.2rem;">
+          Direct URL tracking for all storefront sections, interactive studio, action modals, and Admin Panel manager views.
+        </p>
+      </div>
+
+      <div class="routes-search-bar">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="routesSearchInput" placeholder="Quick search routes (e.g. users, orders, menu, booking)..." autocomplete="off">
+        <span class="routes-shortcut-hint">ESC to close</span>
+      </div>
+
+      <div class="routes-filter-tabs">
+        <button class="routes-tab-btn active" data-filter="all">All Routes</button>
+        <button class="routes-tab-btn" data-filter="public">Storefront Pages</button>
+        <button class="routes-tab-btn" data-filter="modal">Modals & Drawers</button>
+        <button class="routes-tab-btn" data-filter="admin">Admin Panel</button>
+      </div>
+
+      <div class="routes-list-container" id="routesModalList">
+        <!-- Rendered dynamically via Router -->
+      </div>
+
+      <div class="routes-modal-footer">
+        <div style="font-size:0.8rem; color:var(--text-muted);">
+          <i class="fa-solid fa-keyboard" style="color:var(--secondary-accent);"></i> Shortcut: Press <kbd>Ctrl</kbd> + <kbd>K</kbd> to open this navigator anytime
+        </div>
+      </div>
     </div>
   </div>
 

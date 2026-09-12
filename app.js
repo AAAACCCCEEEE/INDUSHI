@@ -1,5 +1,6 @@
 // INDUSHI Application Controller & Admin Control System
 import { INDUSHI_DATA } from './data.js';
+import { router, ROUTES } from './router.js';
 import { app as firebaseApp, auth, db, analytics } from './firebase.js';
 import { 
   signInWithEmailAndPassword, 
@@ -402,6 +403,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveStoreStatusBtn = document.getElementById('saveStoreStatusBtn');
   const resetDataDefaultBtn = document.getElementById('resetDataDefaultBtn');
 
+  // Routes Navigator Elements
+  const routesModal = document.getElementById('routesModal');
+  const closeRoutesModalBtn = document.getElementById('closeRoutesModalBtn');
+  const routesSearchInput = document.getElementById('routesSearchInput');
+  const routesModalList = document.getElementById('routesModalList');
+  const openRoutesModalNavBtn = document.getElementById('openRoutesModalNavBtn');
+  const adminOpenRoutesBtn = document.getElementById('adminOpenRoutesBtn');
+  const adminRouteBadge = document.getElementById('adminRouteBadge');
+
   // --- INITIALIZATION ---
   initAnnouncementBar();
   initNavbar();
@@ -415,10 +425,12 @@ document.addEventListener('DOMContentLoaded', () => {
   renderTestimonials();
   initCartAndModals();
   initAdminDashboard();
+  initRoutesModal();
   updateCartUI();
   updateUserNavUI();
   initFirestoreRealtimeSync();
   initQaSystem();
+  initRouterSystem();
 
   // --- ANNOUNCEMENT BAR LOGIC ---
   function initAnnouncementBar() {
@@ -441,19 +453,19 @@ document.addEventListener('DOMContentLoaded', () => {
   function initAuthSystem() {
     if (openAuthModalBtn) {
       openAuthModalBtn.addEventListener('click', () => {
-        authModal.classList.add('active');
+        router.navigate('/login');
       });
     }
 
     if (closeAuthBtn) {
       closeAuthBtn.addEventListener('click', () => {
-        authModal.classList.remove('active');
+        router.navigate('/home');
       });
     }
 
     if (authModal) {
       authModal.addEventListener('click', (e) => {
-        if (e.target === authModal) authModal.classList.remove('active');
+        if (e.target === authModal) router.navigate('/home');
       });
     }
 
@@ -464,6 +476,9 @@ document.addEventListener('DOMContentLoaded', () => {
         tabRegisterBtn.classList.remove('active');
         loginForm.style.display = 'flex';
         registerForm.style.display = 'none';
+        if (window.location.hash !== '#/login') {
+          history.replaceState(null, '', '#/login');
+        }
       });
 
       tabRegisterBtn.addEventListener('click', () => {
@@ -471,6 +486,9 @@ document.addEventListener('DOMContentLoaded', () => {
         tabLoginBtn.classList.remove('active');
         loginForm.style.display = 'none';
         registerForm.style.display = 'flex';
+        if (window.location.hash !== '#/register') {
+          history.replaceState(null, '', '#/register');
+        }
       });
     }
 
@@ -645,11 +663,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (role === 'admin') {
           showToast('Welcome Admin! Opening Admin Panel... 🛡️', 'success');
+          const redirect = sessionStorage.getItem('indushi_auth_redirect') || '/admin/overview';
+          sessionStorage.removeItem('indushi_auth_redirect');
           setTimeout(() => {
-            openAdminDashboard();
+            router.navigate(redirect);
           }, 300);
         } else {
           showToast(`Welcome back, ${name}! Logged in successfully. 👋`, 'success');
+          router.navigate('/home');
         }
       });
     }
@@ -760,6 +781,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveUser();
     updateUserNavUI();
     if (adminDashboardModal) adminDashboardModal.classList.remove('active');
+    router.navigate('/home');
     showToast('Logged out of Firebase session.', 'info');
   }
 
@@ -777,7 +799,9 @@ document.addEventListener('DOMContentLoaded', () => {
             <i class="fa-solid fa-right-from-bracket"></i>
           </button>
         `;
-        document.getElementById('openAdminNavBtn').addEventListener('click', openAdminDashboard);
+        document.getElementById('openAdminNavBtn').addEventListener('click', () => {
+          router.navigate('/admin/overview');
+        });
         document.getElementById('navLogoutBtn').addEventListener('click', performLogout);
       } else {
         userNavContainer.innerHTML = `
@@ -799,7 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </button>
       `;
       document.getElementById('openAuthModalBtn').addEventListener('click', () => {
-        if (authModal) authModal.classList.add('active');
+        router.navigate('/login');
       });
     }
   }
@@ -855,12 +879,9 @@ document.addEventListener('DOMContentLoaded', () => {
     allNavLinks.forEach(link => {
       link.addEventListener('click', (e) => {
         const href = link.getAttribute('href');
-        if (href && href.startsWith('#')) {
-          const targetSection = document.querySelector(href);
-          if (targetSection) {
-            e.preventDefault();
-            targetSection.scrollIntoView({ behavior: 'smooth' });
-          }
+        if (href && (href.startsWith('#') || href.startsWith('/'))) {
+          e.preventDefault();
+          router.navigate(href);
         }
 
         if (navLinksMenu && navLinksMenu.classList.contains('active')) {
@@ -1131,25 +1152,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- CART & MODAL SYSTEM ---
   function initCartAndModals() {
-    openCartBtn.addEventListener('click', () => cartOverlay.classList.add('active'));
-    closeCartBtn.addEventListener('click', () => cartOverlay.classList.remove('active'));
-    cartOverlay.addEventListener('click', (e) => {
-      if (e.target === cartOverlay) cartOverlay.classList.remove('active');
-    });
+    if (openCartBtn) openCartBtn.addEventListener('click', () => router.navigate('/cart'));
+    if (closeCartBtn) closeCartBtn.addEventListener('click', () => router.navigate('/home'));
+    if (cartOverlay) {
+      cartOverlay.addEventListener('click', (e) => {
+        if (e.target === cartOverlay) router.navigate('/home');
+      });
+    }
 
-    proceedCheckoutBtn.addEventListener('click', () => {
-      if (state.cart.length === 0) {
-        showToast('Your order cart is empty!', 'error');
-        return;
-      }
-      cartOverlay.classList.remove('active');
-      checkoutModal.classList.add('active');
-    });
+    if (proceedCheckoutBtn) {
+      proceedCheckoutBtn.addEventListener('click', () => {
+        if (state.cart.length === 0) {
+          showToast('Your order cart is empty!', 'error');
+          return;
+        }
+        router.navigate('/checkout');
+      });
+    }
 
-    closeCheckoutBtn.addEventListener('click', () => checkoutModal.classList.remove('active'));
-    checkoutModal.addEventListener('click', (e) => {
-      if (e.target === checkoutModal) checkoutModal.classList.remove('active');
-    });
+    if (closeCheckoutBtn) closeCheckoutBtn.addEventListener('click', () => router.navigate('/cart'));
+    if (checkoutModal) {
+      checkoutModal.addEventListener('click', (e) => {
+        if (e.target === checkoutModal) router.navigate('/home');
+      });
+    }
 
     payMethodBtns.forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1166,97 +1192,104 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Customer Checkout Form Submit -> Saves Order to Admin State!
-    checkoutForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const custName = document.getElementById('custName').value.trim();
-      const custPhone = document.getElementById('custPhone').value.trim();
-      const custAddress = document.getElementById('custAddress').value.trim();
-      const activePayBtn = document.querySelector('.pay-method-btn.active');
-      const payMethod = activePayBtn ? activePayBtn.getAttribute('data-pay').toUpperCase() : 'QRIS';
+    if (checkoutForm) {
+      checkoutForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const custName = document.getElementById('custName').value.trim();
+        const custPhone = document.getElementById('custPhone').value.trim();
+        const custAddress = document.getElementById('custAddress').value.trim();
+        const activePayBtn = document.querySelector('.pay-method-btn.active');
+        const payMethod = activePayBtn ? activePayBtn.getAttribute('data-pay').toUpperCase() : 'QRIS';
 
-      const cartTotal = state.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-      const itemsSummary = state.cart.map(i => `${i.qty}x ${i.name}`).join(', ');
+        const cartTotal = state.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+        const itemsSummary = state.cart.map(i => `${i.qty}x ${i.name}`).join(', ');
 
-      const newOrder = {
-        id: 'ORD-' + Math.floor(1000 + Math.random() * 9000),
-        customer: custName,
-        phone: custPhone,
-        address: custAddress,
-        items: itemsSummary,
-        total: cartTotal,
-        paymentMethod: payMethod,
-        status: 'Pending',
-        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
-      };
+        const newOrder = {
+          id: 'ORD-' + Math.floor(1000 + Math.random() * 9000),
+          customer: custName,
+          phone: custPhone,
+          address: custAddress,
+          items: itemsSummary,
+          total: cartTotal,
+          paymentMethod: payMethod,
+          status: 'Pending',
+          createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+        };
 
-      state.orders.unshift(newOrder);
-      saveOrders();
-      try {
-        setDoc(doc(db, "orders", newOrder.id), newOrder);
-      } catch (err) {
-        console.warn("Firestore order save note:", err);
-      }
+        state.orders.unshift(newOrder);
+        saveOrders();
+        try {
+          setDoc(doc(db, "orders", newOrder.id), newOrder);
+        } catch (err) {
+          console.warn("Firestore order save note:", err);
+        }
 
-      checkoutModal.classList.remove('active');
-      state.cart = [];
-      saveCart();
-      updateCartUI();
+        checkoutModal.classList.remove('active');
+        state.cart = [];
+        saveCart();
+        updateCartUI();
 
-      if (adminDashboardModal.classList.contains('active')) {
-        renderAdminOverview();
-        renderAdminOrders();
-      }
+        if (adminDashboardModal.classList.contains('active')) {
+          renderAdminOverview();
+          renderAdminOrders();
+        }
 
-      showToast(`🎉 Thank you ${custName}! Order ${newOrder.id} confirmed. Dispatching courier...`, 'success');
-    });
+        router.navigate('/home');
+        showToast(`🎉 Thank you ${custName}! Order ${newOrder.id} confirmed. Dispatching courier...`, 'success');
+      });
+    }
 
     // Booking Table Modal Submit -> Saves Booking to Admin State & Firestore!
-    const openBooking = () => bookingModal.classList.add('active');
-    const closeBooking = () => bookingModal.classList.remove('active');
+    const openBooking = () => router.navigate('/book-table');
+    const closeBooking = () => router.navigate('/home');
 
     if (bookTableNavBtn) bookTableNavBtn.addEventListener('click', openBooking);
     if (heroBookBtn2) heroBookBtn2.addEventListener('click', openBooking);
     if (closeBookingBtn) closeBookingBtn.addEventListener('click', closeBooking);
-    bookingModal.addEventListener('click', (e) => {
-      if (e.target === bookingModal) closeBooking();
-    });
+    if (bookingModal) {
+      bookingModal.addEventListener('click', (e) => {
+        if (e.target === bookingModal) closeBooking();
+      });
+    }
 
-    bookingForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const name = document.getElementById('bookName').value.trim();
-      const email = document.getElementById('bookEmail').value.trim();
-      const date = document.getElementById('bookDate').value;
-      const time = document.getElementById('bookTime').value;
-      const pax = document.getElementById('bookPax').value + ' Guests';
+    if (bookingForm) {
+      bookingForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = document.getElementById('bookName').value.trim();
+        const email = document.getElementById('bookEmail').value.trim();
+        const date = document.getElementById('bookDate').value;
+        const time = document.getElementById('bookTime').value;
+        const pax = document.getElementById('bookPax').value + ' Guests';
 
-      const newBooking = {
-        id: 'RSV-' + Math.floor(100 + Math.random() * 900),
-        name,
-        email,
-        date,
-        time,
-        pax,
-        status: 'Confirmed',
-        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
-      };
+        const newBooking = {
+          id: 'RSV-' + Math.floor(100 + Math.random() * 900),
+          name,
+          email,
+          date,
+          time,
+          pax,
+          status: 'Confirmed',
+          createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+        };
 
-      state.bookings.unshift(newBooking);
-      saveBookings();
-      try {
-        setDoc(doc(db, "bookings", newBooking.id), newBooking);
-      } catch (err) {
-        console.warn("Firestore booking save note:", err);
-      }
+        state.bookings.unshift(newBooking);
+        saveBookings();
+        try {
+          setDoc(doc(db, "bookings", newBooking.id), newBooking);
+        } catch (err) {
+          console.warn("Firestore booking save note:", err);
+        }
 
-      closeBooking();
+        closeBooking();
 
-      if (adminDashboardModal.classList.contains('active')) {
-        renderAdminOverview();
-        renderAdminBookings();
-      }
+        if (adminDashboardModal.classList.contains('active')) {
+          renderAdminOverview();
+          renderAdminBookings();
+        }
 
-      showToast(`Table Reserved for ${name} on ${date} at ${time}! 🍽️`, 'success');
-    });
+        showToast(`Table Reserved for ${name} on ${date} at ${time}! 🍽️`, 'success');
+      });
+    }
   }
 
   function addToCart(item) {
@@ -1346,34 +1379,79 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- ADMIN DASHBOARD CONTROLLER ---
-  function openAdminDashboard() {
+  function switchAdminTab(targetTab = 'overview') {
+    document.querySelectorAll('[data-admin-tab]').forEach(i => {
+      if (i.getAttribute('data-admin-tab') === targetTab) {
+        i.classList.add('active');
+      } else {
+        i.classList.remove('active');
+      }
+    });
+
+    document.querySelectorAll('.admin-tab-content').forEach(content => {
+      content.classList.remove('active');
+      content.style.display = 'none';
+    });
+
+    const activeContent = document.getElementById(`tab-admin-${targetTab}`);
+    if (activeContent) {
+      activeContent.classList.add('active');
+      activeContent.style.display = 'block';
+    }
+
+    const titleMap = {
+      overview: { title: 'Dashboard Overview', sub: 'Real-time store metrics and control center.' },
+      products: { title: 'Menu & Products Manager', sub: 'Direct live control over sushi items displayed on the website.' },
+      orders: { title: 'Customer Orders Dispatch', sub: 'Manage live checkout orders and delivery status.' },
+      bookings: { title: 'Table Reservations Manager', sub: 'View and manage guest reservations at Senopati location.' },
+      users: { title: 'User Accounts & Verification Manager', sub: 'Approve or reject customer account registration requests to prevent spam.' },
+      settings: { title: 'Site Banner & Configuration', sub: 'Manage top announcement banner and store operational status.' },
+      qa: { title: 'QA & Bug Tracker Manager', sub: 'Triage reported glitches, review annotated screenshots, and manage bug fix iterations.' }
+    };
+
+    if (titleMap[targetTab]) {
+      if (adminTabTitle) adminTabTitle.textContent = titleMap[targetTab].title;
+      if (adminTabSubtitle) adminTabSubtitle.textContent = titleMap[targetTab].sub;
+    }
+
+    const adminRoutePathText = document.getElementById('adminRoutePathText');
+    if (adminRoutePathText) {
+      adminRoutePathText.textContent = `#/admin/${targetTab}`;
+    }
+
+    if (targetTab === 'overview') renderAdminOverview();
+    if (targetTab === 'products') renderAdminProducts();
+    if (targetTab === 'orders') renderAdminOrders();
+    if (targetTab === 'bookings') renderAdminBookings();
+    if (targetTab === 'users') renderAdminUsers();
+    if (targetTab === 'settings') loadAdminSettingsUI();
+    if (targetTab === 'qa' && typeof renderAdminQa === 'function') renderAdminQa();
+  }
+
+  function openAdminDashboard(targetTab = 'overview') {
     if (!state.user || state.user.role !== 'admin') {
       showToast('Admin privilege required to access Dashboard!', 'error');
-      if (authModal) authModal.classList.add('active');
+      sessionStorage.setItem('indushi_auth_redirect', `/admin/${targetTab}`);
+      router.navigate('/login');
       return;
     }
 
     if (adminDashboardModal) adminDashboardModal.classList.add('active');
     if (adminLoggedName && state.user) adminLoggedName.textContent = state.user.name;
 
-    renderAdminOverview();
-    renderAdminProducts();
-    renderAdminOrders();
-    renderAdminBookings();
-    renderAdminUsers();
-    loadAdminSettingsUI();
+    switchAdminTab(targetTab);
   }
 
   function initAdminDashboard() {
     if (closeAdminDashboardBtn) {
       closeAdminDashboardBtn.addEventListener('click', () => {
-        adminDashboardModal.classList.remove('active');
+        router.navigate('/home');
       });
     }
 
     if (viewLiveSiteBtn) {
       viewLiveSiteBtn.addEventListener('click', () => {
-        adminDashboardModal.classList.remove('active');
+        router.navigate('/home');
       });
     }
 
@@ -1385,43 +1463,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!item) return;
 
         const targetTab = item.getAttribute('data-admin-tab');
+        router.navigate(`/admin/${targetTab}`);
+      });
+    }
 
-        document.querySelectorAll('[data-admin-tab]').forEach(i => i.classList.remove('active'));
-        item.classList.add('active');
+    // Route Badge Copy Listener
+    if (adminRouteBadge) {
+      adminRouteBadge.addEventListener('click', () => {
+        navigator.clipboard.writeText(window.location.href);
+        showToast('Admin route URL copied to clipboard! 📋', 'success');
+      });
+    }
 
-        document.querySelectorAll('.admin-tab-content').forEach(content => {
-          content.classList.remove('active');
-          content.style.display = 'none';
-        });
-
-        const activeContent = document.getElementById(`tab-admin-${targetTab}`);
-        if (activeContent) {
-          activeContent.classList.add('active');
-          activeContent.style.display = 'block';
-        }
-
-        const titleMap = {
-          overview: { title: 'Dashboard Overview', sub: 'Real-time store metrics and control center.' },
-          products: { title: 'Menu & Products Manager', sub: 'Direct live control over sushi items displayed on the website.' },
-          orders: { title: 'Customer Orders Dispatch', sub: 'Manage live checkout orders and delivery status.' },
-          bookings: { title: 'Table Reservations Manager', sub: 'View and manage guest reservations at Senopati location.' },
-          users: { title: 'User Accounts & Verification Manager', sub: 'Approve or reject customer account registration requests to prevent spam.' },
-          settings: { title: 'Site Banner & Configuration', sub: 'Manage top announcement banner and store operational status.' },
-          qa: { title: 'QA & Bug Tracker Manager', sub: 'Triage reported glitches, review annotated screenshots, and manage bug fix iterations.' }
-        };
-
-        if (titleMap[targetTab]) {
-          if (adminTabTitle) adminTabTitle.textContent = titleMap[targetTab].title;
-          if (adminTabSubtitle) adminTabSubtitle.textContent = titleMap[targetTab].sub;
-        }
-
-        if (targetTab === 'overview') renderAdminOverview();
-        if (targetTab === 'products') renderAdminProducts();
-        if (targetTab === 'orders') renderAdminOrders();
-        if (targetTab === 'bookings') renderAdminBookings();
-        if (targetTab === 'users') renderAdminUsers();
-        if (targetTab === 'settings') loadAdminSettingsUI();
-        if (targetTab === 'qa') renderAdminQa();
+    // Admin Open Routes Button
+    if (adminOpenRoutesBtn) {
+      adminOpenRoutesBtn.addEventListener('click', () => {
+        router.navigate('/routes');
       });
     }
 
@@ -2816,6 +2873,154 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // --- ROUTES NAVIGATOR MODAL CONTROLLER ---
+  function initRoutesModal() {
+    if (openRoutesModalNavBtn) {
+      openRoutesModalNavBtn.addEventListener('click', () => router.navigate('/routes'));
+    }
+    if (closeRoutesModalBtn) {
+      closeRoutesModalBtn.addEventListener('click', () => {
+        const dest = router.previousPath && router.previousPath !== '/routes' ? router.previousPath : '/home';
+        router.navigate(dest);
+      });
+    }
+    if (routesModal) {
+      routesModal.addEventListener('click', (e) => {
+        if (e.target === routesModal) {
+          const dest = router.previousPath && router.previousPath !== '/routes' ? router.previousPath : '/home';
+          router.navigate(dest);
+        }
+      });
+    }
+
+    // Search and tab filters
+    if (routesSearchInput) {
+      routesSearchInput.addEventListener('input', (e) => {
+        const activeTab = document.querySelector('.routes-tab-btn.active');
+        const filter = activeTab ? activeTab.getAttribute('data-filter') : 'all';
+        renderRoutesModalList(filter, e.target.value);
+      });
+    }
+
+    document.querySelectorAll('.routes-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.routes-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const filter = btn.getAttribute('data-filter');
+        const query = routesSearchInput ? routesSearchInput.value : '';
+        renderRoutesModalList(filter, query);
+      });
+    });
+  }
+
+  function renderRoutesModalList(filter = 'all', searchQuery = '') {
+    if (!routesModalList) return;
+    const query = searchQuery.trim().toLowerCase();
+
+    const filtered = ROUTES.filter(r => {
+      if (filter !== 'all' && r.type !== filter) return false;
+      if (query) {
+        return r.name.toLowerCase().includes(query) ||
+               r.path.toLowerCase().includes(query) ||
+               (r.description && r.description.toLowerCase().includes(query));
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      routesModalList.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align:center; padding: 2.5rem 1rem; color:var(--text-muted);">
+          <i class="fa-solid fa-magnifying-glass" style="font-size:2rem; margin-bottom:0.75rem; opacity:0.4; display:block;"></i>
+          <p>No matching routes found for "${searchQuery}".</p>
+        </div>
+      `;
+      return;
+    }
+
+    routesModalList.innerHTML = filtered.map(r => {
+      const isCurrent = router.currentPath === r.path;
+      return `
+        <div class="route-card ${isCurrent ? 'current-active' : ''}" data-route-target="${r.path}">
+          <div class="route-card-top">
+            <div class="route-card-icon ${r.type}">
+              <i class="${r.icon}"></i>
+            </div>
+            <div style="display:flex; gap:0.35rem; align-items:center;">
+              <span class="route-tag ${r.type}">${r.type}</span>
+              ${isCurrent ? '<span class="route-tag active-pill">Active</span>' : ''}
+            </div>
+          </div>
+          <div class="route-card-title">${r.name}</div>
+          <div class="route-card-path">#${r.path}</div>
+          <div class="route-card-desc">${r.description}</div>
+        </div>
+      `;
+    }).join('');
+
+    routesModalList.querySelectorAll('[data-route-target]').forEach(card => {
+      card.addEventListener('click', () => {
+        const path = card.getAttribute('data-route-target');
+        router.navigate(path);
+      });
+    });
+  }
+
+  // --- ROUTER SYSTEM INITIALIZATION & LIFECYCLE BINDING ---
+  function initRouterSystem() {
+    router.registerHooks({
+      checkAdminAuth: () => Boolean(state.user && state.user.role === 'admin'),
+      openAdminDashboard: (targetTab) => {
+        openAdminDashboard(targetTab);
+      },
+      closeAdminDashboard: () => {
+        if (adminDashboardModal) adminDashboardModal.classList.remove('active');
+      },
+      openBookingModal: () => {
+        if (bookingModal) bookingModal.classList.add('active');
+      },
+      openCartDrawer: () => {
+        if (cartOverlay) cartOverlay.classList.add('active');
+      },
+      openCheckoutModal: () => {
+        if (checkoutModal) checkoutModal.classList.add('active');
+      },
+      openAuthModal: (mode) => {
+        if (authModal) {
+          authModal.classList.add('active');
+          if (mode === 'register') {
+            if (tabRegisterBtn) tabRegisterBtn.click();
+          } else {
+            if (tabLoginBtn) tabLoginBtn.click();
+          }
+        }
+      },
+      openRoutesModal: () => {
+        renderRoutesModalList();
+        if (routesModal) {
+          routesModal.classList.add('active');
+          if (routesSearchInput) {
+            routesSearchInput.value = '';
+            setTimeout(() => routesSearchInput.focus(), 120);
+          }
+        }
+      },
+      closeAllModals: () => {
+        if (bookingModal) bookingModal.classList.remove('active');
+        if (cartOverlay) cartOverlay.classList.remove('active');
+        if (checkoutModal) checkoutModal.classList.remove('active');
+        if (authModal) authModal.classList.remove('active');
+        if (routesModal) routesModal.classList.remove('active');
+        if (productFormModal) productFormModal.classList.remove('active');
+        const qaModal = document.getElementById('qaModal');
+        if (qaModal) qaModal.classList.remove('active');
+        const qaProofLightboxModal = document.getElementById('qaProofLightboxModal');
+        if (qaProofLightboxModal) qaProofLightboxModal.classList.remove('active');
+      },
+      showToast: (msg, type) => showToast(msg, type)
+    });
+
+    router.init();
+  }
   // --- TOAST UTILITY ---
   function showToast(message, type = 'info') {
     const toast = document.createElement('div');
