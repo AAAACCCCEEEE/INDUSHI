@@ -8,9 +8,12 @@ import {
   onAuthStateChanged 
 } from "firebase/auth";
 import { 
+  collection, 
   doc, 
   setDoc, 
-  getDoc 
+  getDoc, 
+  onSnapshot, 
+  deleteDoc 
 } from "firebase/firestore";
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -120,8 +123,108 @@ document.addEventListener('DOMContentLoaded', () => {
   function saveUser() {
     if (state.user) {
       localStorage.setItem('indushi_user', JSON.stringify(state.user));
-    } else {
-      localStorage.removeItem('indushi_user');
+    }
+  }
+
+  // --- REAL-TIME FIRESTORE MULTI-ADMIN CLOUD SYNC ---
+  function initFirestoreRealtimeSync() {
+    try {
+      // 1. Real-time Products Sync
+      onSnapshot(collection(db, "products"), (snapshot) => {
+        if (!snapshot.empty) {
+          const items = [];
+          snapshot.forEach(docSnap => {
+            items.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          state.products = items;
+          saveProducts();
+          renderProducts();
+          if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
+            renderAdminProducts();
+            renderAdminOverview();
+          }
+        } else {
+          // Seed products to Cloud Firestore if empty
+          INITIAL_PRODUCTS.forEach(async (p) => {
+            try {
+              await setDoc(doc(db, "products", p.id), p);
+            } catch (e) {}
+          });
+        }
+      }, (err) => console.warn("Firestore products sync note:", err));
+
+      // 2. Real-time Customer Orders Sync across all Admins
+      onSnapshot(collection(db, "orders"), (snapshot) => {
+        if (!snapshot.empty) {
+          const orderList = [];
+          snapshot.forEach(docSnap => {
+            orderList.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          orderList.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+          state.orders = orderList;
+          saveOrders();
+          if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
+            renderAdminOrders();
+            renderAdminOverview();
+          }
+        }
+      }, (err) => console.warn("Firestore orders sync note:", err));
+
+      // 3. Real-time Table Reservations Sync
+      onSnapshot(collection(db, "bookings"), (snapshot) => {
+        if (!snapshot.empty) {
+          const bookingList = [];
+          snapshot.forEach(docSnap => {
+            bookingList.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          bookingList.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+          state.bookings = bookingList;
+          saveBookings();
+          if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
+            renderAdminBookings();
+            renderAdminOverview();
+          }
+        }
+      }, (err) => console.warn("Firestore bookings sync note:", err));
+
+      // 4. Real-time Registered User Accounts Sync
+      onSnapshot(collection(db, "users"), (snapshot) => {
+        if (!snapshot.empty) {
+          const userList = [];
+          snapshot.forEach(docSnap => {
+            userList.push({ uid: docSnap.id, ...docSnap.data() });
+          });
+          if (!userList.some(u => u.email.toLowerCase() === 'admin@indushi.id')) {
+            userList.unshift({
+              uid: 'seed-admin-01',
+              name: 'Master Admin',
+              email: 'admin@indushi.id',
+              role: 'admin',
+              status: 'active',
+              Verified: true,
+              Created_at: { date: '2026-09-01', timestamp: 1788220800000 },
+              createdAt: '2026-09-01 10:00'
+            });
+          }
+          state.registeredUserList = userList;
+          saveRegisteredUserList();
+          if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
+            renderAdminUsers();
+            renderAdminOverview();
+          }
+        }
+      }, (err) => console.warn("Firestore users sync note:", err));
+
+      // 5. Real-time Site Settings Sync
+      onSnapshot(doc(db, "settings", "site"), (docSnap) => {
+        if (docSnap.exists()) {
+          state.siteSettings = docSnap.data();
+          saveSettings();
+          initAnnouncementBar();
+        }
+      }, (err) => console.warn("Firestore settings sync note:", err));
+    } catch (err) {
+      console.warn("Firestore realtime init note:", err);
     }
   }
 
@@ -244,6 +347,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initAdminDashboard();
   updateCartUI();
   updateUserNavUI();
+  initAuthSystem();
+  initFirestoreRealtimeSync();
 
   // --- ANNOUNCEMENT BAR LOGIC ---
   function initAnnouncementBar() {
@@ -1013,6 +1118,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       state.orders.unshift(newOrder);
       saveOrders();
+      try {
+        setDoc(doc(db, "orders", newOrder.id), newOrder);
+      } catch (err) {
+        console.warn("Firestore order save note:", err);
+      }
 
       checkoutModal.classList.remove('active');
       state.cart = [];
@@ -1027,7 +1137,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast(`🎉 Thank you ${custName}! Order ${newOrder.id} confirmed. Dispatching courier...`, 'success');
     });
 
-    // Booking Table Modal Submit -> Saves Booking to Admin State!
+    // Booking Table Modal Submit -> Saves Booking to Admin State & Firestore!
     const openBooking = () => bookingModal.classList.add('active');
     const closeBooking = () => bookingModal.classList.remove('active');
 
@@ -1059,6 +1169,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       state.bookings.unshift(newBooking);
       saveBookings();
+      try {
+        setDoc(doc(db, "bookings", newBooking.id), newBooking);
+      } catch (err) {
+        console.warn("Firestore booking save note:", err);
+      }
 
       closeBooking();
 
@@ -1312,6 +1427,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         saveProducts();
+        const targetProd = editId ? state.products.find(p => p.id === editId) : state.products[0];
+        if (targetProd) {
+          try {
+            setDoc(doc(db, "products", targetProd.id), targetProd);
+          } catch (e) {
+            console.warn("Firestore product save note:", e);
+          }
+        }
         renderProducts(); // Updates main website live!
         renderAdminProducts();
         renderAdminOverview();
@@ -1325,6 +1448,11 @@ document.addEventListener('DOMContentLoaded', () => {
         state.siteSettings.showAnnouncement = toggleAnnouncementBar.checked;
         state.siteSettings.announcementText = announcementTextEdit.value.trim();
         saveSettings();
+        try {
+          setDoc(doc(db, "settings", "site"), state.siteSettings, { merge: true });
+        } catch (e) {
+          console.warn("Firestore settings update note:", e);
+        }
         initAnnouncementBar();
         showToast('Top Site Announcement Banner updated! 📢', 'success');
       });
@@ -1334,6 +1462,11 @@ document.addEventListener('DOMContentLoaded', () => {
       saveStoreStatusBtn.addEventListener('click', () => {
         state.siteSettings.isStoreOpen = toggleStoreOpen.checked;
         saveSettings();
+        try {
+          setDoc(doc(db, "settings", "site"), state.siteSettings, { merge: true });
+        } catch (e) {
+          console.warn("Firestore settings update note:", e);
+        }
         showToast(`Store Operational Status saved (${toggleStoreOpen.checked ? 'OPEN' : 'CLOSED'})! 🏪`, 'success');
       });
     }
@@ -1650,6 +1783,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirm(`Are you sure you want to delete "${prod.name}" from the website menu?`)) {
           state.products = state.products.filter(p => p.id !== id);
           saveProducts();
+          try {
+            deleteDoc(doc(db, "products", id));
+          } catch (e) {
+            console.warn("Firestore product delete note:", e);
+          }
           renderProducts(); // Updates main site!
           renderAdminProducts();
           renderAdminOverview();
@@ -1707,6 +1845,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (order) {
           order.status = newStatus;
           saveOrders();
+          try {
+            setDoc(doc(db, "orders", id), { status: newStatus }, { merge: true });
+          } catch (e) {
+            console.warn("Firestore order status update note:", e);
+          }
           renderAdminOverview();
           showToast(`Order ${id} status updated to ${newStatus}! 📦`, 'success');
         }
@@ -1720,6 +1863,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirm(`Delete record for Order ${id}?`)) {
           state.orders = state.orders.filter(o => o.id !== id);
           saveOrders();
+          try {
+            deleteDoc(doc(db, "orders", id));
+          } catch (e) {
+            console.warn("Firestore order delete note:", e);
+          }
           renderAdminOrders();
           renderAdminOverview();
           showToast(`Order ${id} deleted.`, 'info');
@@ -1773,6 +1921,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (booking) {
           booking.status = newStatus;
           saveBookings();
+          try {
+            setDoc(doc(db, "bookings", id), { status: newStatus }, { merge: true });
+          } catch (e) {
+            console.warn("Firestore booking status update note:", e);
+          }
           renderAdminOverview();
           showToast(`Reservation ${id} updated to ${newStatus}! 🍽️`, 'success');
         }
@@ -1785,6 +1938,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirm(`Delete reservation record ${id}?`)) {
           state.bookings = state.bookings.filter(b => b.id !== id);
           saveBookings();
+          try {
+            deleteDoc(doc(db, "bookings", id));
+          } catch (e) {
+            console.warn("Firestore booking delete note:", e);
+          }
           renderAdminBookings();
           renderAdminOverview();
           showToast(`Reservation ${id} deleted.`, 'info');
