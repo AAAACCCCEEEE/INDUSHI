@@ -347,7 +347,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initAdminDashboard();
   updateCartUI();
   updateUserNavUI();
-  initAuthSystem();
   initFirestoreRealtimeSync();
 
   // --- ANNOUNCEMENT BAR LOGIC ---
@@ -450,7 +449,6 @@ document.addEventListener('DOMContentLoaded', () => {
           state.user = null;
           saveUser();
           updateUserNavUI();
-          showToast('⏳ Your account is pending Admin approval. Please wait for an admin to verify your account before logging in.', 'error');
           return;
         }
 
@@ -553,7 +551,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (role !== 'admin' && status !== 'active') {
-          showToast('⏳ Your account is pending Admin approval.', 'error');
+          await signOut(auth);
+          state.user = null;
+          saveUser();
+          updateUserNavUI();
+          showToast('⏳ Account pending Admin verification! Please wait for an Admin to approve your account in the Admin Panel before logging in.', 'error');
           return;
         }
 
@@ -1304,22 +1306,29 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Sidebar Tab Switches
-    adminNavItems.forEach(item => {
-      item.addEventListener('click', () => {
+    // Sidebar Tab Switches via Delegation
+    const adminNav = document.querySelector('.admin-nav');
+    if (adminNav) {
+      adminNav.addEventListener('click', (e) => {
+        const item = e.target.closest('[data-admin-tab]');
+        if (!item) return;
+
         const targetTab = item.getAttribute('data-admin-tab');
 
-        adminNavItems.forEach(i => i.classList.remove('active'));
+        document.querySelectorAll('[data-admin-tab]').forEach(i => i.classList.remove('active'));
         item.classList.add('active');
 
-        adminTabContents.forEach(content => {
+        document.querySelectorAll('.admin-tab-content').forEach(content => {
           content.classList.remove('active');
+          content.style.display = 'none';
         });
 
         const activeContent = document.getElementById(`tab-admin-${targetTab}`);
-        if (activeContent) activeContent.classList.add('active');
+        if (activeContent) {
+          activeContent.classList.add('active');
+          activeContent.style.display = 'block';
+        }
 
-        // Titles
         const titleMap = {
           overview: { title: 'Dashboard Overview', sub: 'Real-time store metrics and control center.' },
           products: { title: 'Menu & Products Manager', sub: 'Direct live control over sushi items displayed on the website.' },
@@ -1330,8 +1339,8 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         if (titleMap[targetTab]) {
-          adminTabTitle.textContent = titleMap[targetTab].title;
-          adminTabSubtitle.textContent = titleMap[targetTab].sub;
+          if (adminTabTitle) adminTabTitle.textContent = titleMap[targetTab].title;
+          if (adminTabSubtitle) adminTabSubtitle.textContent = titleMap[targetTab].sub;
         }
 
         if (targetTab === 'overview') renderAdminOverview();
@@ -1341,7 +1350,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (targetTab === 'users') renderAdminUsers();
         if (targetTab === 'settings') loadAdminSettingsUI();
       });
-    });
+    }
 
     // Product Search & Filter in Admin
     if (adminProductSearch) {
