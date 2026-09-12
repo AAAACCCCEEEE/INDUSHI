@@ -94,6 +94,43 @@ document.addEventListener('DOMContentLoaded', () => {
     heroAutoTimer: null,
     cart: JSON.parse(localStorage.getItem('indushi_cart')) || [],
     
+    // QA & Bug Tracker State
+    qaReports: JSON.parse(localStorage.getItem('indushi_qa_reports')) || [
+      {
+        id: 'QA-001',
+        topic: 'Checkout button unresponsive on mobile Safari iOS',
+        priority: 'Critical',
+        username: 'Sebastian Jefferson',
+        proof: 'https://images.unsplash.com/photo-1555421689-491a97ff2040?w=600&auto=format&fit=crop&q=80',
+        status: 'In Progress',
+        fixAttempts: 2,
+        description: 'When tapping the "Proceed to Checkout" button on iPhone 13 running Safari, the button stays in depressed state and does not trigger payment confirmation modal. Console throws touch listener timeout.',
+        createdAt: '2026-09-08 14:10'
+      },
+      {
+        id: 'QA-002',
+        topic: 'Custom Sushi builder spice slider snaps back to 0',
+        priority: 'Medium',
+        username: 'Budi Santoso',
+        proof: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&auto=format&fit=crop&q=80',
+        status: 'Solved',
+        fixAttempts: 1,
+        description: 'Adjusting the spice slider in Custom Roll Builder resets back to level 0 whenever Rendang Aburi is selected as the primary topping.',
+        createdAt: '2026-09-09 11:25'
+      },
+      {
+        id: 'QA-003',
+        topic: 'Table reservation date picker allows past booking dates',
+        priority: 'High',
+        username: 'Citra Kirana',
+        proof: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&auto=format&fit=crop&q=80',
+        status: 'New',
+        fixAttempts: 0,
+        description: 'The reservation calendar input does not set min attribute to today, allowing users to pick yesterday and submit invalid reservations.',
+        createdAt: '2026-09-11 16:45'
+      }
+    ],
+
     // Custom Roll Builder State
     customRoll: {
       base: INDUSHI_DATA.customBuilderOptions.bases[0],
@@ -119,6 +156,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function saveSettings() {
     localStorage.setItem('indushi_settings', JSON.stringify(state.siteSettings));
+  }
+  function saveQaReports() {
+    localStorage.setItem('indushi_qa_reports', JSON.stringify(state.qaReports));
   }
   function saveUser() {
     if (state.user) {
@@ -223,6 +263,36 @@ document.addEventListener('DOMContentLoaded', () => {
           initAnnouncementBar();
         }
       }, (err) => console.warn("Firestore settings sync note:", err));
+
+      // 6. Real-time QA & Bug Reports Sync across all Admins & Users
+      onSnapshot(collection(db, "qa_reports"), (snapshot) => {
+        if (!snapshot.empty) {
+          const reports = [];
+          snapshot.forEach(docSnap => {
+            reports.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          // Sort chronologically ascending: QA-001, QA-002, QA-003...
+          reports.sort((a, b) => {
+            const numA = parseInt((a.id || '').replace(/\D/g, '')) || 0;
+            const numB = parseInt((b.id || '').replace(/\D/g, '')) || 0;
+            return numA - numB;
+          });
+          state.qaReports = reports;
+          saveQaReports();
+          renderPublicQa();
+          if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
+            renderAdminQa();
+            renderAdminOverview();
+          }
+        } else {
+          // Seed initial default reports to Firestore if collection is empty
+          state.qaReports.forEach(async (r) => {
+            try {
+              await setDoc(doc(db, "qa_reports", r.id), r);
+            } catch (e) {}
+          });
+        }
+      }, (err) => console.warn("Firestore QA reports sync note:", err));
     } catch (err) {
       console.warn("Firestore realtime init note:", err);
     }
@@ -348,6 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateCartUI();
   updateUserNavUI();
   initFirestoreRealtimeSync();
+  initQaSystem();
 
   // --- ANNOUNCEMENT BAR LOGIC ---
   function initAnnouncementBar() {
@@ -1335,7 +1406,8 @@ document.addEventListener('DOMContentLoaded', () => {
           orders: { title: 'Customer Orders Dispatch', sub: 'Manage live checkout orders and delivery status.' },
           bookings: { title: 'Table Reservations Manager', sub: 'View and manage guest reservations at Senopati location.' },
           users: { title: 'User Accounts & Verification Manager', sub: 'Approve or reject customer account registration requests to prevent spam.' },
-          settings: { title: 'Site Banner & Configuration', sub: 'Manage top announcement banner and store operational status.' }
+          settings: { title: 'Site Banner & Configuration', sub: 'Manage top announcement banner and store operational status.' },
+          qa: { title: 'QA & Bug Tracker Manager', sub: 'Triage reported glitches, review annotated screenshots, and manage bug fix iterations.' }
         };
 
         if (titleMap[targetTab]) {
@@ -1349,6 +1421,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (targetTab === 'bookings') renderAdminBookings();
         if (targetTab === 'users') renderAdminUsers();
         if (targetTab === 'settings') loadAdminSettingsUI();
+        if (targetTab === 'qa') renderAdminQa();
       });
     }
 
@@ -1567,6 +1640,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const adminUsersBadge = document.getElementById('adminUsersBadge');
     if (adminUsersBadge) adminUsersBadge.textContent = pendingUsers;
+
+    const adminQaBadge = document.getElementById('adminQaBadge');
+    if (adminQaBadge) {
+      const openBugs = state.qaReports.filter(r => r.status !== 'Solved').length;
+      adminQaBadge.textContent = openBugs;
+    }
 
     // Recent 5 Orders
     const recentOrders = state.orders.slice(0, 5);
@@ -1965,6 +2044,776 @@ document.addEventListener('DOMContentLoaded', () => {
     if (toggleAnnouncementBar) toggleAnnouncementBar.checked = state.siteSettings.showAnnouncement;
     if (announcementTextEdit) announcementTextEdit.value = state.siteSettings.announcementText;
     if (toggleStoreOpen) toggleStoreOpen.checked = state.siteSettings.isStoreOpen;
+  }
+
+  // ==========================================================================
+  // QA & BUG TRACKER SYSTEM (PUBLIC & ADMIN CONTROL)
+  // ==========================================================================
+  function initQaSystem() {
+    const publicQaTableBody = document.getElementById('publicQaTableBody');
+    const qaTotalReportsCount = document.getElementById('qaTotalReportsCount');
+    const qaOpenReportsCount = document.getElementById('qaOpenReportsCount');
+    const openQaModalBtn = document.getElementById('openQaModalBtn');
+    const closeQaModalBtn = document.getElementById('closeQaModalBtn');
+    const qaModal = document.getElementById('qaModal');
+    const qaReportForm = document.getElementById('qaReportForm');
+
+    // Canvas & Annotation studio elements
+    const qaProofUrl = document.getElementById('qaProofUrl');
+    const qaProofFile = document.getElementById('qaProofFile');
+    const qaUseSampleImageBtn = document.getElementById('qaUseSampleImageBtn');
+    const qaAnnotationStudio = document.getElementById('qaAnnotationStudio');
+    const qaCanvas = document.getElementById('qaCanvas');
+    const qaCanvasWrapper = document.getElementById('qaCanvasWrapper');
+    const qaCanvasHint = document.getElementById('qaCanvasHint');
+    const qaToolBox = document.getElementById('qaToolBox');
+    const qaToolPen = document.getElementById('qaToolPen');
+    const qaUndoBtn = document.getElementById('qaUndoBtn');
+    const qaClearCanvasBtn = document.getElementById('qaClearCanvasBtn');
+    const colorBtns = document.querySelectorAll('.qa-color-btn');
+
+    // Lightbox Inspector elements
+    const qaProofLightboxModal = document.getElementById('qaProofLightboxModal');
+    const closeQaLightboxBtn = document.getElementById('closeQaLightboxBtn');
+    const qaInspectCloseBtn = document.getElementById('qaInspectCloseBtn');
+
+    // Admin QA elements
+    const adminQaTableBody = document.getElementById('adminQaTableBody');
+    const adminQaSearch = document.getElementById('adminQaSearch');
+    const adminQaStatusFilter = document.getElementById('adminQaStatusFilter');
+    const adminQaPriorityFilter = document.getElementById('adminQaPriorityFilter');
+    const adminOpenQaModalBtn = document.getElementById('adminOpenQaModalBtn');
+
+    // Canvas State
+    let ctx = qaCanvas ? qaCanvas.getContext('2d') : null;
+    let baseImg = null;
+    let annotations = [];
+    let activeTool = 'box'; // 'box' or 'pen'
+    let activeColor = '#e74c3c';
+    let isDrawing = false;
+    let startX = 0;
+    let startY = 0;
+    let currentPenPoints = [];
+
+    // Helper: Hex to RGBA for highlight box
+    function hexToRgba(hex, alpha) {
+      let c = (hex || '#e74c3c').replace('#', '');
+      if (c.length === 3) c = c.split('').map(x => x + x).join('');
+      const num = parseInt(c, 16) || 0;
+      return `rgba(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}, ${alpha})`;
+    }
+
+    // Helper: Canvas coordinates from event
+    function getCanvasCoords(e) {
+      if (!qaCanvas) return { x: 0, y: 0 };
+      const rect = qaCanvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const scaleX = qaCanvas.width / (rect.width || 1);
+      const scaleY = qaCanvas.height / (rect.height || 1);
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+      };
+    }
+
+    // Redraw Canvas (base image + annotations + in-progress shape)
+    function redrawCanvas(currentPreview = null) {
+      if (!ctx || !qaCanvas || !baseImg) return;
+      ctx.clearRect(0, 0, qaCanvas.width, qaCanvas.height);
+      ctx.drawImage(baseImg, 0, 0, qaCanvas.width, qaCanvas.height);
+
+      // Draw stored annotations
+      annotations.forEach(ann => {
+        if (ann.type === 'box') {
+          // Highlight translucent fill
+          ctx.fillStyle = hexToRgba(ann.color, 0.28);
+          ctx.fillRect(ann.x, ann.y, ann.w, ann.h);
+          // Highlight sharp outline
+          ctx.strokeStyle = ann.color;
+          ctx.lineWidth = 3;
+          ctx.setLineDash([4, 4]);
+          ctx.strokeRect(ann.x, ann.y, ann.w, ann.h);
+          ctx.setLineDash([]);
+        } else if (ann.type === 'pen' && ann.points && ann.points.length > 1) {
+          ctx.strokeStyle = ann.color;
+          ctx.lineWidth = 3.5;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          ctx.moveTo(ann.points[0].x, ann.points[0].y);
+          for (let i = 1; i < ann.points.length; i++) {
+            ctx.lineTo(ann.points[i].x, ann.points[i].y);
+          }
+          ctx.stroke();
+        }
+      });
+
+      // Draw active preview shape during mouse drag
+      if (currentPreview) {
+        if (currentPreview.type === 'box') {
+          ctx.fillStyle = hexToRgba(currentPreview.color, 0.28);
+          ctx.fillRect(currentPreview.x, currentPreview.y, currentPreview.w, currentPreview.h);
+          ctx.strokeStyle = currentPreview.color;
+          ctx.lineWidth = 3;
+          ctx.setLineDash([4, 4]);
+          ctx.strokeRect(currentPreview.x, currentPreview.y, currentPreview.w, currentPreview.h);
+          ctx.setLineDash([]);
+        } else if (currentPreview.type === 'pen' && currentPreview.points && currentPreview.points.length > 1) {
+          ctx.strokeStyle = currentPreview.color;
+          ctx.lineWidth = 3.5;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          ctx.moveTo(currentPreview.points[0].x, currentPreview.points[0].y);
+          for (let i = 1; i < currentPreview.points.length; i++) {
+            ctx.lineTo(currentPreview.points[i].x, currentPreview.points[i].y);
+          }
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Load Image into Canvas Studio
+    function loadImageIntoCanvas(imageSrc) {
+      if (!qaCanvas || !ctx) return;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        baseImg = img;
+        annotations = [];
+        
+        // Scale to fit canvas studio nicely (max width 600, max height 340)
+        let w = img.width || 600;
+        let h = img.height || 360;
+        const maxW = 600;
+        const maxH = 340;
+        const ratio = Math.min(maxW / w, maxH / h, 1);
+        
+        qaCanvas.width = Math.round(w * ratio);
+        qaCanvas.height = Math.round(h * ratio);
+
+        if (qaAnnotationStudio) qaAnnotationStudio.style.display = 'block';
+        redrawCanvas();
+        if (qaCanvasHint) {
+          qaCanvasHint.innerHTML = `<i class="fa-solid fa-shapes"></i> Image ready! Drag on image to highlight glitch with <strong>${activeTool === 'box' ? 'Boxes' : 'Pen'}</strong>.`;
+        }
+      };
+      img.onerror = () => {
+        showToast("Could not load image. Please try another link or upload.", "error");
+      };
+      img.src = imageSrc;
+    }
+
+    // Canvas Mouse & Touch Interaction Listeners
+    if (qaCanvas) {
+      // Mouse Down
+      qaCanvas.addEventListener('mousedown', (e) => {
+        if (!baseImg) return;
+        isDrawing = true;
+        const coords = getCanvasCoords(e);
+        startX = coords.x;
+        startY = coords.y;
+        if (activeTool === 'pen') {
+          currentPenPoints = [{ x: startX, y: startY }];
+        }
+      });
+
+      // Mouse Move
+      qaCanvas.addEventListener('mousemove', (e) => {
+        if (!isDrawing || !baseImg) return;
+        const coords = getCanvasCoords(e);
+        if (activeTool === 'box') {
+          const preview = {
+            type: 'box',
+            x: Math.min(startX, coords.x),
+            y: Math.min(startY, coords.y),
+            w: Math.abs(coords.x - startX),
+            h: Math.abs(coords.y - startY),
+            color: activeColor
+          };
+          redrawCanvas(preview);
+        } else if (activeTool === 'pen') {
+          currentPenPoints.push(coords);
+          redrawCanvas({
+            type: 'pen',
+            points: currentPenPoints,
+            color: activeColor
+          });
+        }
+      });
+
+      // Mouse Up
+      const finishDrawing = (e) => {
+        if (!isDrawing || !baseImg) return;
+        isDrawing = false;
+        const coords = getCanvasCoords(e || { clientX: startX, clientY: startY });
+        if (activeTool === 'box') {
+          const w = Math.abs(coords.x - startX);
+          const h = Math.abs(coords.y - startY);
+          if (w > 5 && h > 5) {
+            annotations.push({
+              type: 'box',
+              x: Math.min(startX, coords.x),
+              y: Math.min(startY, coords.y),
+              w: w,
+              h: h,
+              color: activeColor
+            });
+          }
+        } else if (activeTool === 'pen' && currentPenPoints.length > 1) {
+          annotations.push({
+            type: 'pen',
+            points: [...currentPenPoints],
+            color: activeColor
+          });
+          currentPenPoints = [];
+        }
+        redrawCanvas();
+      };
+
+      qaCanvas.addEventListener('mouseup', finishDrawing);
+      qaCanvas.addEventListener('mouseleave', () => {
+        if (isDrawing) finishDrawing();
+      });
+
+      // Touch Events for Mobile / Tablet
+      qaCanvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (!baseImg) return;
+        isDrawing = true;
+        const coords = getCanvasCoords(e);
+        startX = coords.x;
+        startY = coords.y;
+        if (activeTool === 'pen') {
+          currentPenPoints = [{ x: startX, y: startY }];
+        }
+      });
+
+      qaCanvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (!isDrawing || !baseImg) return;
+        const coords = getCanvasCoords(e);
+        if (activeTool === 'box') {
+          const preview = {
+            type: 'box',
+            x: Math.min(startX, coords.x),
+            y: Math.min(startY, coords.y),
+            w: Math.abs(coords.x - startX),
+            h: Math.abs(coords.y - startY),
+            color: activeColor
+          };
+          redrawCanvas(preview);
+        } else if (activeTool === 'pen') {
+          currentPenPoints.push(coords);
+          redrawCanvas({
+            type: 'pen',
+            points: currentPenPoints,
+            color: activeColor
+          });
+        }
+      });
+
+      qaCanvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        finishDrawing(e);
+      });
+    }
+
+    // Annotation Toolbar Controls
+    if (qaToolBox) {
+      qaToolBox.addEventListener('click', () => {
+        activeTool = 'box';
+        qaToolBox.classList.add('active');
+        if (qaToolPen) qaToolPen.classList.remove('active');
+      });
+    }
+
+    if (qaToolPen) {
+      qaToolPen.addEventListener('click', () => {
+        activeTool = 'pen';
+        qaToolPen.classList.add('active');
+        if (qaToolBox) qaToolBox.classList.remove('active');
+      });
+    }
+
+    colorBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        colorBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeColor = btn.getAttribute('data-color') || '#e74c3c';
+      });
+    });
+
+    if (qaUndoBtn) {
+      qaUndoBtn.addEventListener('click', () => {
+        if (annotations.length > 0) {
+          annotations.pop();
+          redrawCanvas();
+        }
+      });
+    }
+
+    if (qaClearCanvasBtn) {
+      qaClearCanvasBtn.addEventListener('click', () => {
+        annotations = [];
+        redrawCanvas();
+      });
+    }
+
+    // Image Input Listeners
+    if (qaProofUrl) {
+      qaProofUrl.addEventListener('change', () => {
+        const url = qaProofUrl.value.trim();
+        if (url) loadImageIntoCanvas(url);
+      });
+    }
+
+    if (qaProofFile) {
+      qaProofFile.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            loadImageIntoCanvas(event.target.result);
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    if (qaUseSampleImageBtn) {
+      qaUseSampleImageBtn.addEventListener('click', () => {
+        const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="340" viewBox="0 0 600 340">
+          <rect width="600" height="340" fill="#121212"/>
+          <rect x="0" y="0" width="600" height="48" fill="#1e1e1e"/>
+          <circle cx="24" cy="24" r="8" fill="#E8501D"/>
+          <text x="44" y="29" fill="#ffffff" font-family="sans-serif" font-size="14" font-weight="bold">INDUSHI - Checkout Bug Reproduction</text>
+          <rect x="30" y="70" width="320" height="180" rx="8" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+          <text x="50" y="105" fill="#E8501D" font-family="sans-serif" font-size="15" font-weight="bold">1x Rendang Aburi Supreme Roll</text>
+          <text x="50" y="130" fill="#888" font-family="sans-serif" font-size="12">Subtotal: IDR 55,000 • Senopati Kitchen</text>
+          <rect x="50" y="170" width="280" height="44" rx="6" fill="#E8501D"/>
+          <text x="110" y="198" fill="#ffffff" font-family="sans-serif" font-size="14" font-weight="bold">Proceed to Checkout</text>
+          <rect x="375" y="70" width="195" height="230" rx="8" fill="#181818" stroke="#2c2c2c"/>
+          <text x="390" y="100" fill="#ff7675" font-family="sans-serif" font-size="12" font-weight="bold">🐞 Glitch Observation:</text>
+          <text x="390" y="125" fill="#bbb" font-family="sans-serif" font-size="11">Clicking button does not open</text>
+          <text x="390" y="145" fill="#bbb" font-family="sans-serif" font-size="11">QRIS payment modal on iOS.</text>
+          <rect x="390" y="180" width="165" height="30" rx="4" fill="#252525"/>
+          <text x="400" y="200" fill="#feca57" font-family="sans-serif" font-size="11">Error: touchstart timeout</text>
+        </svg>`;
+        const sampleUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sampleSvg)}`;
+        loadImageIntoCanvas(sampleUrl);
+      });
+    }
+
+    // Public Modal Open / Close
+    if (openQaModalBtn) {
+      openQaModalBtn.addEventListener('click', () => {
+        if (state.user && document.getElementById('qaUsername')) {
+          document.getElementById('qaUsername').value = state.user.name || '';
+        }
+        qaModal.classList.add('active');
+      });
+    }
+
+    if (adminOpenQaModalBtn) {
+      adminOpenQaModalBtn.addEventListener('click', () => {
+        if (state.user && document.getElementById('qaUsername')) {
+          document.getElementById('qaUsername').value = state.user.name || 'Master Admin';
+        }
+        qaModal.classList.add('active');
+      });
+    }
+
+    if (closeQaModalBtn) {
+      closeQaModalBtn.addEventListener('click', () => {
+        qaModal.classList.remove('active');
+      });
+    }
+
+    // Lightbox Inspector Close
+    if (closeQaLightboxBtn) {
+      closeQaLightboxBtn.addEventListener('click', () => {
+        qaProofLightboxModal.classList.remove('active');
+      });
+    }
+    if (qaInspectCloseBtn) {
+      qaInspectCloseBtn.addEventListener('click', () => {
+        qaProofLightboxModal.classList.remove('active');
+      });
+    }
+
+    // Open Inspection Modal (Full screenshot + problem description)
+    window.openQaInspectionModal = function(reportId) {
+      const report = state.qaReports.find(r => r.id === reportId);
+      if (!report) return;
+
+      const img = document.getElementById('qaLightboxImg');
+      const title = document.getElementById('qaLightboxTitle');
+      const idEl = document.getElementById('qaInspectId');
+      const priEl = document.getElementById('qaInspectPriority');
+      const statEl = document.getElementById('qaInspectStatus');
+      const repEl = document.getElementById('qaInspectReporter');
+      const dateEl = document.getElementById('qaInspectDate');
+      const fixEl = document.getElementById('qaInspectFixAttempts');
+      const descEl = document.getElementById('qaInspectDescription');
+
+      if (img) img.src = report.proof || '';
+      if (title) title.textContent = report.topic || 'Issue Details';
+      if (idEl) idEl.textContent = report.id;
+      if (priEl) priEl.innerHTML = `<span class="badge-priority badge-priority-${(report.priority || 'medium').toLowerCase()}">${report.priority}</span>`;
+      if (statEl) statEl.innerHTML = `<span class="badge-status badge-status-${(report.status || 'new').toLowerCase().replace(/\s+/g, '-')}">${report.status}</span>`;
+      if (repEl) repEl.innerHTML = `<i class="fa-solid fa-user"></i> ${report.username || 'Anonymous'}`;
+      if (dateEl) dateEl.innerHTML = `<i class="fa-regular fa-clock"></i> ${report.createdAt || 'Recent'}`;
+      if (fixEl) fixEl.innerHTML = `<i class="fa-solid fa-wrench"></i> <strong>${report.fixAttempts || 0}</strong> ${report.fixAttempts === 1 ? 'attempt' : 'attempts'}`;
+      if (descEl) descEl.textContent = report.description || 'No steps or description provided.';
+
+      if (qaProofLightboxModal) qaProofLightboxModal.classList.add('active');
+    };
+
+    // Submit QA Bug Report Form
+    if (qaReportForm) {
+      qaReportForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        // 1. Generate next chronological ID: QA-001, QA-002, QA-003...
+        let maxNum = 0;
+        state.qaReports.forEach(r => {
+          const num = parseInt((r.id || '').replace(/\D/g, '')) || 0;
+          if (num > maxNum) maxNum = num;
+        });
+        const nextId = `QA-${String(maxNum + 1).padStart(3, '0')}`;
+
+        // 2. Export proof image (either annotated canvas or provided URL)
+        let proofData = '';
+        if (baseImg && qaCanvas) {
+          proofData = qaCanvas.toDataURL('image/jpeg', 0.82);
+        } else if (qaProofUrl && qaProofUrl.value.trim()) {
+          proofData = qaProofUrl.value.trim();
+        } else {
+          // Default placeholder
+          proofData = 'https://images.unsplash.com/photo-1555421689-491a97ff2040?w=600&auto=format&fit=crop&q=80';
+        }
+
+        const newReport = {
+          id: nextId,
+          topic: document.getElementById('qaTopic').value.trim(),
+          priority: document.getElementById('qaPriority').value,
+          username: document.getElementById('qaUsername').value.trim() || (state.user ? state.user.name : 'Anonymous'),
+          proof: proofData,
+          status: 'New',
+          fixAttempts: 0,
+          description: document.getElementById('qaDescription').value.trim(),
+          createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+        };
+
+        state.qaReports.push(newReport);
+        saveQaReports();
+
+        // Cloud Firestore Multi-Admin Sync
+        try {
+          await setDoc(doc(db, "qa_reports", nextId), newReport);
+        } catch (err) {
+          console.warn("Firestore QA save note:", err);
+        }
+
+        renderPublicQa();
+        if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
+          renderAdminQa();
+          renderAdminOverview();
+        }
+
+        qaModal.classList.remove('active');
+        qaReportForm.reset();
+        if (qaAnnotationStudio) qaAnnotationStudio.style.display = 'none';
+        baseImg = null;
+        annotations = [];
+
+        showToast(`Bug report ${nextId} submitted successfully! 🐞`, 'success');
+
+        const qaSection = document.getElementById('qa');
+        if (qaSection) {
+          qaSection.scrollIntoView({ behavior: 'smooth' });
+        }
+      });
+    }
+
+    // Search and Filter Listeners for Admin QA
+    if (adminQaSearch) adminQaSearch.addEventListener('input', renderAdminQa);
+    if (adminQaStatusFilter) adminQaStatusFilter.addEventListener('change', renderAdminQa);
+    if (adminQaPriorityFilter) adminQaPriorityFilter.addEventListener('change', renderAdminQa);
+
+    // Initial Renders
+    renderPublicQa();
+  }
+
+  // --- RENDER PUBLIC QA TABLE ---
+  function renderPublicQa() {
+    const tableBody = document.getElementById('publicQaTableBody');
+    const totalCountEl = document.getElementById('qaTotalReportsCount');
+    const openCountEl = document.getElementById('qaOpenReportsCount');
+
+    if (!tableBody) return;
+
+    const total = state.qaReports.length;
+    const openCount = state.qaReports.filter(r => r.status !== 'Solved').length;
+
+    if (totalCountEl) totalCountEl.textContent = total;
+    if (openCountEl) openCountEl.textContent = openCount;
+
+    if (total === 0) {
+      tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No bug reports submitted yet. Everything looks running smoothly! ✨</td></tr>`;
+      return;
+    }
+
+    // Required column order: ID (chronological), Topic, Priority, Username, proof (screenshot), Status, Fix Attempts
+    tableBody.innerHTML = state.qaReports.map(report => `
+      <tr>
+        <td><span class="qa-id-pill">${report.id}</span></td>
+        <td>
+          <strong style="color:#fff; font-size:0.92rem;">${report.topic}</strong>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">Reported on ${report.createdAt || 'Recent'}</div>
+        </td>
+        <td>
+          <span class="badge-priority badge-priority-${(report.priority || 'medium').toLowerCase()}">
+            ${report.priority}
+          </span>
+        </td>
+        <td>
+          <span style="font-weight:600; color:var(--text-main);">
+            <i class="fa-solid fa-user" style="color:var(--text-muted); margin-right:4px; font-size:0.8rem;"></i>
+            ${report.username}
+          </span>
+        </td>
+        <td>
+          <div class="qa-proof-cell" data-inspect-id="${report.id}" title="Click to view screenshot & problem description">
+            <img class="qa-proof-thumb" src="${report.proof}" alt="Proof Thumbnail">
+            <span class="qa-proof-zoom-icon"><i class="fa-solid fa-magnifying-glass-plus"></i></span>
+          </div>
+        </td>
+        <td>
+          <span class="badge-status badge-status-${(report.status || 'new').toLowerCase().replace(/\s+/g, '-')}">
+            ${report.status}
+          </span>
+        </td>
+        <td>
+          <span class="qa-attempts-badge" title="Fix iterations applied">
+            <i class="fa-solid fa-wrench" style="color:var(--primary-accent);"></i>
+            <strong>${report.fixAttempts || 0}</strong> ${(report.fixAttempts === 1) ? 'attempt' : 'attempts'}
+          </span>
+        </td>
+      </tr>
+    `).join('');
+
+    // Clicking proof opens the inspector modal
+    tableBody.querySelectorAll('.qa-proof-cell').forEach(cell => {
+      cell.addEventListener('click', () => {
+        const id = cell.getAttribute('data-inspect-id');
+        if (window.openQaInspectionModal) window.openQaInspectionModal(id);
+      });
+    });
+  }
+
+  // --- RENDER ADMIN QA TAB ---
+  function renderAdminQa() {
+    const tableBody = document.getElementById('adminQaTableBody');
+    if (!tableBody) return;
+
+    // 1. KPI Counts
+    const total = state.qaReports.length;
+    const newCount = state.qaReports.filter(r => r.status === 'New').length;
+    const inProgressCount = state.qaReports.filter(r => r.status === 'In Progress').length;
+    const solvedCount = state.qaReports.filter(r => r.status === 'Solved').length;
+
+    const totalEl = document.getElementById('adminQaKpiTotal');
+    const newEl = document.getElementById('adminQaKpiNew');
+    const progEl = document.getElementById('adminQaKpiInProgress');
+    const solvEl = document.getElementById('adminQaKpiSolved');
+    const badgeEl = document.getElementById('adminQaBadge');
+
+    if (totalEl) totalEl.textContent = total;
+    if (newEl) newEl.textContent = newCount;
+    if (progEl) progEl.textContent = inProgressCount;
+    if (solvEl) solvEl.textContent = solvedCount;
+    if (badgeEl) badgeEl.textContent = (newCount + inProgressCount);
+
+    // 2. Filters
+    const searchVal = (document.getElementById('adminQaSearch')?.value || '').toLowerCase().trim();
+    const statusVal = document.getElementById('adminQaStatusFilter')?.value || 'all';
+    const priVal = document.getElementById('adminQaPriorityFilter')?.value || 'all';
+
+    let filtered = [...state.qaReports];
+
+    if (searchVal) {
+      filtered = filtered.filter(r => 
+        (r.id || '').toLowerCase().includes(searchVal) ||
+        (r.topic || '').toLowerCase().includes(searchVal) ||
+        (r.username || '').toLowerCase().includes(searchVal) ||
+        (r.description || '').toLowerCase().includes(searchVal)
+      );
+    }
+
+    if (statusVal !== 'all') {
+      filtered = filtered.filter(r => r.status === statusVal);
+    }
+
+    if (priVal !== 'all') {
+      filtered = filtered.filter(r => r.priority === priVal);
+    }
+
+    if (filtered.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">No bug reports match your filter criteria.</td></tr>`;
+      return;
+    }
+
+    // Required column order: ID (chronological), Topic, Priority, Username, proof (screenshot), Status, Fix Attempts, Actions
+    tableBody.innerHTML = filtered.map(report => `
+      <tr>
+        <td><span class="qa-id-pill">${report.id}</span></td>
+        <td>
+          <strong style="color:#fff; font-size:0.9rem;">${report.topic}</strong>
+          <div style="font-size:0.75rem; color:var(--text-muted);">${report.createdAt || 'Recent'}</div>
+        </td>
+        <td>
+          <span class="badge-priority badge-priority-${(report.priority || 'medium').toLowerCase()}">
+            ${report.priority}
+          </span>
+        </td>
+        <td>
+          <span style="font-weight:600; color:var(--text-main);">
+            <i class="fa-solid fa-user" style="color:var(--text-muted); margin-right:4px;"></i>${report.username}
+          </span>
+        </td>
+        <td>
+          <div class="qa-proof-cell" data-inspect-id="${report.id}" title="Click to inspect problem & screenshot">
+            <img class="qa-proof-thumb" src="${report.proof}" alt="Proof Thumbnail">
+            <span class="qa-proof-zoom-icon"><i class="fa-solid fa-magnifying-glass-plus"></i></span>
+          </div>
+        </td>
+        <td>
+          <select class="admin-select qa-admin-status-select" data-id="${report.id}" style="padding:0.35rem 0.6rem; font-size:0.8rem;">
+            <option value="New" ${report.status === 'New' ? 'selected' : ''}>New</option>
+            <option value="In Progress" ${report.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+            <option value="Solved" ${report.status === 'Solved' ? 'selected' : ''}>Solved</option>
+          </select>
+        </td>
+        <td>
+          <div class="qa-attempt-control">
+            <button class="qa-attempt-btn qa-attempt-dec" data-id="${report.id}" title="Decrease Fix Attempts">-</button>
+            <span class="qa-attempt-num">${report.fixAttempts || 0}</span>
+            <button class="qa-attempt-btn qa-attempt-inc" data-id="${report.id}" title="Increase Fix Attempts">+</button>
+          </div>
+        </td>
+        <td style="text-align:right;">
+          <div style="display:inline-flex; gap:0.4rem;">
+            <button class="btn btn-outline qa-btn-inspect-row" data-id="${report.id}" title="Inspect Details" style="padding:0.35rem 0.65rem; font-size:0.8rem;">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+            <button class="btn btn-del-booking qa-btn-delete-row" data-id="${report.id}" title="Delete Bug Report" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:rgba(231, 76, 60, 0.2); color:#e74c3c;">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+
+    // Event: Click proof thumbnail to open inspection modal
+    tableBody.querySelectorAll('.qa-proof-cell').forEach(cell => {
+      cell.addEventListener('click', () => {
+        const id = cell.getAttribute('data-inspect-id');
+        if (window.openQaInspectionModal) window.openQaInspectionModal(id);
+      });
+    });
+
+    // Event: Inspect button
+    tableBody.querySelectorAll('.qa-btn-inspect-row').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        if (window.openQaInspectionModal) window.openQaInspectionModal(id);
+      });
+    });
+
+    // Event: Live Status Change
+    tableBody.querySelectorAll('.qa-admin-status-select').forEach(select => {
+      select.addEventListener('change', async (e) => {
+        const id = select.getAttribute('data-id');
+        const newStatus = e.target.value;
+        const report = state.qaReports.find(r => r.id === id);
+        if (report) {
+          report.status = newStatus;
+          saveQaReports();
+          try {
+            await setDoc(doc(db, "qa_reports", id), { status: newStatus }, { merge: true });
+          } catch (err) {
+            console.warn("Firestore status update note:", err);
+          }
+          renderPublicQa();
+          renderAdminQa();
+          renderAdminOverview();
+          showToast(`Report ${id} marked as ${newStatus}!`, 'success');
+        }
+      });
+    });
+
+    // Event: Increment Fix Attempts
+    tableBody.querySelectorAll('.qa-attempt-inc').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        const report = state.qaReports.find(r => r.id === id);
+        if (report) {
+          report.fixAttempts = (report.fixAttempts || 0) + 1;
+          saveQaReports();
+          try {
+            await setDoc(doc(db, "qa_reports", id), { fixAttempts: report.fixAttempts }, { merge: true });
+          } catch (err) {
+            console.warn("Firestore fixAttempts increment note:", err);
+          }
+          renderPublicQa();
+          renderAdminQa();
+          showToast(`Report ${id} fix attempts: ${report.fixAttempts}`, 'info');
+        }
+      });
+    });
+
+    // Event: Decrement Fix Attempts
+    tableBody.querySelectorAll('.qa-attempt-dec').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        const report = state.qaReports.find(r => r.id === id);
+        if (report && (report.fixAttempts || 0) > 0) {
+          report.fixAttempts = report.fixAttempts - 1;
+          saveQaReports();
+          try {
+            await setDoc(doc(db, "qa_reports", id), { fixAttempts: report.fixAttempts }, { merge: true });
+          } catch (err) {
+            console.warn("Firestore fixAttempts decrement note:", err);
+          }
+          renderPublicQa();
+          renderAdminQa();
+          showToast(`Report ${id} fix attempts: ${report.fixAttempts}`, 'info');
+        }
+      });
+    });
+
+    // Event: Delete Bug Report
+    tableBody.querySelectorAll('.qa-btn-delete-row').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        if (confirm(`Delete QA Bug Report ${id}? This action cannot be undone.`)) {
+          state.qaReports = state.qaReports.filter(r => r.id !== id);
+          saveQaReports();
+          try {
+            await deleteDoc(doc(db, "qa_reports", id));
+          } catch (err) {
+            console.warn("Firestore QA delete note:", err);
+          }
+          renderPublicQa();
+          renderAdminQa();
+          renderAdminOverview();
+          showToast(`Report ${id} deleted.`, 'info');
+        }
+      });
+    });
   }
 
   // --- TOAST UTILITY ---

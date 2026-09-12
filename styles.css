@@ -2231,3 +2231,512 @@ img {
   }
 }
 
+/* ==========================================================================
+   QA & BUG TRACKER SYSTEM STYLES
+   ========================================================================== */
+
+.qa-section {
+  padding: 5rem 0;
+  background: linear-gradient(180deg, var(--bg-dark) 0%, rgba(20, 20, 20, 0.98) 100%);
+  position: relative;
+  border-top: 1px solid var(--border-color);
+}
+
+.qa-controls-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.qa-stats-pills {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.qa-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  color: var(--text-main);
+}
+
+.qa-pill-open {
+  border-color: rgba(231, 76, 60, 0.4);
+  background: rgba(231, 76, 60, 0.08);
+  color: #ff7675;
+}
+
+.qa-table-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+.qa-table th {
+  background: #141414;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 700;
+  padding: 1rem 1.2rem;
+  white-space: nowrap;
+}
+
+.qa-table td {
+  padding: 1rem 1.2rem;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.88rem;
+}
+
+.qa-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ID Pill */
+.qa-id-pill {
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 0.25rem 0.55rem;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: var(--text-main);
+  display: inline-block;
+  letter-spacing: 0.5px;
+}
+
+/* Priority Badges */
+.badge-priority {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.badge-priority-critical {
+  background: rgba(231, 76, 60, 0.2);
+  color: #ff5252;
+  border: 1px solid rgba(231, 76, 60, 0.4);
+}
+
+.badge-priority-high {
+  background: rgba(230, 126, 34, 0.2);
+  color: #ff9f43;
+  border: 1px solid rgba(230, 126, 34, 0.4);
+}
+
+.badge-priority-medium {
+  background: rgba(241, 196, 15, 0.18);
+  color: #feca57;
+  border: 1px solid rgba(241, 196, 15, 0.35);
+}
+
+.badge-priority-low {
+  background: rgba(46, 204, 113, 0.18);
+  color: #1dd1a1;
+  border: 1px solid rgba(46, 204, 113, 0.35);
+}
+
+/* Status Badges */
+.badge-status-new {
+  background: rgba(52, 152, 219, 0.2);
+  color: #54a0ff;
+  border: 1px solid rgba(52, 152, 219, 0.4);
+}
+
+.badge-status-in-progress {
+  background: rgba(243, 156, 18, 0.2);
+  color: #ff9f43;
+  border: 1px solid rgba(243, 156, 18, 0.4);
+}
+
+.badge-status-solved {
+  background: rgba(46, 204, 113, 0.2);
+  color: #2ecc71;
+  border: 1px solid rgba(46, 204, 113, 0.4);
+}
+
+/* Proof Thumbnail in Table */
+.qa-proof-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  position: relative;
+  text-decoration: none;
+}
+
+.qa-proof-thumb {
+  width: 58px;
+  height: 42px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--border-color);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  background: #1a1a1a;
+  display: block;
+}
+
+.qa-proof-cell:hover .qa-proof-thumb {
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(232, 80, 29, 0.3);
+  border-color: var(--primary-accent);
+}
+
+.qa-proof-zoom-icon {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  padding: 2px 4px;
+  pointer-events: none;
+}
+
+/* Fix Attempts Counter Badge */
+.qa-attempts-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.qa-attempts-badge strong {
+  color: var(--primary-accent);
+}
+
+/* Admin Fix Attempts Step Controls */
+.qa-attempt-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #181818;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+
+.qa-attempt-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  transition: all 0.15s ease;
+}
+
+.qa-attempt-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.qa-attempt-num {
+  font-weight: 700;
+  font-size: 0.85rem;
+  min-width: 22px;
+  text-align: center;
+  color: var(--primary-accent);
+}
+
+/* In-Browser Canvas Annotation Studio */
+.qa-annotation-studio {
+  background: #111;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+}
+
+.qa-canvas-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.qa-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.qa-tool-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.qa-tool-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+}
+
+.qa-tool-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.qa-tool-btn.active {
+  background: var(--primary-accent);
+  border-color: var(--primary-accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+.qa-tool-btn.qa-btn-danger:hover {
+  background: #e74c3c;
+  border-color: #e74c3c;
+  color: #fff;
+}
+
+.qa-color-pickers {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.qa-color-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.qa-color-btn:hover {
+  transform: scale(1.15);
+}
+
+.qa-color-btn.active {
+  border-color: #fff;
+  box-shadow: 0 0 8px currentColor;
+  transform: scale(1.15);
+}
+
+.qa-canvas-wrapper {
+  position: relative;
+  width: 100%;
+  max-height: 280px;
+  overflow: auto;
+  background: #080808;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+#qaCanvas {
+  max-width: 100%;
+  cursor: crosshair;
+  border-radius: 4px;
+  display: block;
+}
+
+.qa-canvas-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 4px 0 0 0;
+  pointer-events: none;
+}
+
+/* Inspection Modal (Lightbox + Problem Description) */
+.qa-inspector-modal-box {
+  max-width: 880px !important;
+  width: 95%;
+  padding: 1.5rem !important;
+}
+
+.qa-inspector-layout {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .qa-inspector-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.qa-inspector-image-pane {
+  background: #0d0d0d;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.qa-inspector-image-header {
+  padding: 0.6rem 0.9rem;
+  background: #141414;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.qa-inspector-image-tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.qa-inspector-image-scroll {
+  padding: 0.75rem;
+  max-height: 480px;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle, #1a1a1a 0%, #0c0c0c 100%);
+}
+
+.qa-inspector-image-scroll img {
+  max-width: 100%;
+  max-height: 440px;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  display: block;
+}
+
+.qa-inspector-details-pane {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.qa-inspect-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.35;
+  margin-top: 0.2rem;
+}
+
+.qa-inspector-meta-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+  padding: 0.8rem;
+  background: #151515;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+@media (max-width: 480px) {
+  .qa-inspector-meta-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.qa-meta-label {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 0.2rem;
+}
+
+.qa-meta-value {
+  font-size: 0.82rem;
+  color: #fff;
+  font-weight: 600;
+}
+
+.qa-inspect-desc-box {
+  background: rgba(232, 80, 29, 0.05);
+  border: 1px solid rgba(232, 80, 29, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.qa-inspect-desc-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--primary-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.qa-inspect-desc-text {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-main);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  max-height: 160px;
+}
+
+.qa-inspector-footer {
+  display: flex;
+  gap: 0.8rem;
+  margin-top: 0.5rem;
+}
+
+

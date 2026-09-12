@@ -57,6 +57,7 @@
           </ul>
         </li>
         <li><a href="#story" class="nav-link">Our Story</a></li>
+        <li><a href="#qa" class="nav-link">QA & Bugs</a></li>
       </ul>
 
       <div class="nav-actions">
@@ -458,6 +459,51 @@
     </div>
   </section>
 
+  <!-- QA & Bug Reporting Section -->
+  <section class="qa-section" id="qa">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-subtitle"><i class="fa-solid fa-bug"></i> Quality Assurance & Bug Portal</div>
+        <h2 class="section-title">Community QA & Issue Tracker</h2>
+        <p style="color:var(--text-muted); max-width:640px; margin:0.6rem auto 0; font-size:0.95rem;">
+          Help us perfect INDUSHI! Found a glitch or issue? Report it below with screenshot proof so our engineering team can resolve it.
+        </p>
+      </div>
+
+      <div class="qa-controls-bar">
+        <div class="qa-stats-pills">
+          <span class="qa-pill"><i class="fa-solid fa-list-check" style="color:var(--primary-accent);"></i> Total Reports: <strong id="qaTotalReportsCount">0</strong></span>
+          <span class="qa-pill qa-pill-open"><i class="fa-solid fa-circle-exclamation"></i> Open Issues: <strong id="qaOpenReportsCount">0</strong></span>
+        </div>
+        <button class="btn btn-primary" id="openQaModalBtn">
+          <i class="fa-solid fa-plus"></i> Report an Issue / Bug
+        </button>
+      </div>
+
+      <!-- QA Reports Table (Client Facing) -->
+      <div class="admin-card-box qa-table-box">
+        <div class="table-responsive">
+          <table class="admin-table qa-table">
+            <thead>
+              <tr>
+                <th style="width: 100px;">ID</th>
+                <th>Topic</th>
+                <th style="width: 120px;">Priority</th>
+                <th style="width: 150px;">Username</th>
+                <th style="width: 140px;">Proof (Screenshot)</th>
+                <th style="width: 120px;">Status</th>
+                <th style="width: 130px;">Fix Attempts</th>
+              </tr>
+            </thead>
+            <tbody id="publicQaTableBody">
+              <!-- Injected dynamically via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Footer -->
   <footer class="footer">
     <div class="container">
@@ -703,6 +749,171 @@
     </div>
   </div>
 
+  <!-- QA Bug Report Modal with In-Browser Highlight Annotation Studio -->
+  <div class="modal-overlay" id="qaModal">
+    <div class="modal-box" style="max-width: 720px;">
+      <button class="close-modal-btn" id="closeQaModalBtn">&times;</button>
+      <h2 style="margin-bottom:0.4rem;">
+        <i class="fa-solid fa-bug" style="color:var(--primary-accent);"></i> Report Bug or Issue
+      </h2>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.2rem;">
+        Submit issue details with screenshot proof. Highlight the bug area using boxes or drawings before submitting.
+      </p>
+
+      <form id="qaReportForm">
+        <div class="form-group">
+          <label for="qaTopic"><i class="fa-solid fa-heading"></i> Topic / Issue Summary</label>
+          <input type="text" id="qaTopic" placeholder="e.g. Broken checkout button on mobile safari" required>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+          <div class="form-group">
+            <label for="qaPriority"><i class="fa-solid fa-triangle-exclamation"></i> Priority</label>
+            <select id="qaPriority" required>
+              <option value="Critical">🔴 Critical (Blocking / Crash)</option>
+              <option value="High">🟠 High (Major feature glitch)</option>
+              <option value="Medium" selected>🟡 Medium (Minor glitch / flow)</option>
+              <option value="Low">🟢 Low (Visual / Polish suggestion)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="qaUsername"><i class="fa-solid fa-user"></i> Username</label>
+            <input type="text" id="qaUsername" placeholder="Your name or username" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label><i class="fa-solid fa-image"></i> Proof (Screenshot Image & Annotation Studio)</label>
+          <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:0.5rem;">
+            Upload your screenshot or paste an image link, then highlight the issue area using boxes or notes below.
+          </p>
+          <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+            <input type="url" id="qaProofUrl" placeholder="https://images.unsplash.com/... or image link" style="flex:1; min-width:200px;">
+            <label class="btn btn-secondary" style="margin:0; padding:0.65rem 1rem; cursor:pointer; font-size:0.8rem; white-space:nowrap;">
+              <i class="fa-solid fa-upload"></i> Upload
+              <input type="file" id="qaProofFile" accept="image/*" style="display:none;">
+            </label>
+            <button type="button" class="btn btn-outline" id="qaUseSampleImageBtn" style="padding:0.65rem 0.9rem; font-size:0.8rem; white-space:nowrap;">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Use Sample UI
+            </button>
+          </div>
+
+          <!-- In-Browser Annotation Studio -->
+          <div class="qa-annotation-studio" id="qaAnnotationStudio" style="display:none; margin-top:0.8rem;">
+            <div class="qa-canvas-toolbar">
+              <div class="qa-toolbar-group">
+                <span class="qa-tool-label"><i class="fa-solid fa-shapes"></i> Mode:</span>
+                <button type="button" class="qa-tool-btn active" id="qaToolBox" title="Draw Highlight Box">
+                  <i class="fa-regular fa-square"></i> Box Highlight
+                </button>
+                <button type="button" class="qa-tool-btn" id="qaToolPen" title="Draw Freehand Marker">
+                  <i class="fa-solid fa-pen"></i> Pen
+                </button>
+              </div>
+
+              <div class="qa-toolbar-group">
+                <span class="qa-tool-label">Color:</span>
+                <div class="qa-color-pickers">
+                  <button type="button" class="qa-color-btn active" data-color="#e74c3c" style="background:#e74c3c;" title="Red"></button>
+                  <button type="button" class="qa-color-btn" data-color="#f39c12" style="background:#f39c12;" title="Orange"></button>
+                  <button type="button" class="qa-color-btn" data-color="#f1c40f" style="background:#f1c40f;" title="Yellow"></button>
+                  <button type="button" class="qa-color-btn" data-color="#00cec9" style="background:#00cec9;" title="Cyan"></button>
+                </div>
+              </div>
+
+              <div class="qa-toolbar-group">
+                <button type="button" class="qa-tool-btn" id="qaUndoBtn" title="Undo Last Highlight">
+                  <i class="fa-solid fa-rotate-left"></i> Undo
+                </button>
+                <button type="button" class="qa-tool-btn qa-btn-danger" id="qaClearCanvasBtn" title="Clear All Highlights">
+                  <i class="fa-solid fa-trash-can"></i> Clear
+                </button>
+              </div>
+            </div>
+
+            <div class="qa-canvas-wrapper" id="qaCanvasWrapper">
+              <canvas id="qaCanvas"></canvas>
+              <div class="qa-canvas-hint" id="qaCanvasHint">
+                <i class="fa-solid fa-vector-square"></i> Click and drag on the image to draw highlight boxes over the glitch
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="qaDescription"><i class="fa-solid fa-align-left"></i> Issue Description / Steps to Reproduce</label>
+          <textarea id="qaDescription" rows="3" placeholder="Describe where and when the bug occurred, what you expected vs what happened..." required></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%; margin-top:1rem;">
+          <i class="fa-solid fa-paper-plane"></i> Submit QA Bug Report
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- QA Proof & Problem Description Inspection Modal -->
+  <div class="modal-overlay" id="qaProofLightboxModal">
+    <div class="modal-box qa-inspector-modal-box">
+      <button class="close-modal-btn" id="closeQaLightboxBtn">&times;</button>
+      
+      <div class="qa-inspector-layout">
+        <!-- Left: Image display -->
+        <div class="qa-inspector-image-pane">
+          <div class="qa-inspector-image-header">
+            <span class="qa-inspector-image-tag"><i class="fa-solid fa-camera"></i> Proof Screenshot</span>
+          </div>
+          <div class="qa-inspector-image-scroll">
+            <img id="qaLightboxImg" src="" alt="Proof Screenshot">
+          </div>
+        </div>
+
+        <!-- Right: Problem Description & Metadata -->
+        <div class="qa-inspector-details-pane">
+          <div class="qa-inspector-header">
+            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.6rem; flex-wrap:wrap;">
+              <span class="qa-id-pill" id="qaInspectId">QA-001</span>
+              <span id="qaInspectPriority"></span>
+              <span id="qaInspectStatus"></span>
+            </div>
+            <h3 id="qaLightboxTitle" class="qa-inspect-title">Broken checkout button on mobile safari</h3>
+          </div>
+
+          <div class="qa-inspector-meta-row">
+            <div>
+              <span class="qa-meta-label">Reported by</span>
+              <div class="qa-meta-value" id="qaInspectReporter"><i class="fa-solid fa-user"></i> Sebastian Jefferson</div>
+            </div>
+            <div>
+              <span class="qa-meta-label">Date Submitted</span>
+              <div class="qa-meta-value" id="qaInspectDate"><i class="fa-regular fa-clock"></i> 2026-09-10 14:20</div>
+            </div>
+            <div>
+              <span class="qa-meta-label">Fix Attempts</span>
+              <div class="qa-meta-value" id="qaInspectFixAttempts"><i class="fa-solid fa-wrench"></i> <strong>2</strong> attempts</div>
+            </div>
+          </div>
+
+          <div class="qa-inspect-desc-box">
+            <div class="qa-inspect-desc-title">
+              <i class="fa-solid fa-circle-info"></i> Problem Description & Steps to Reproduce
+            </div>
+            <div class="qa-inspect-desc-text" id="qaInspectDescription">
+              <!-- Description filled dynamically -->
+            </div>
+          </div>
+
+          <div class="qa-inspector-footer">
+            <button class="btn btn-secondary" id="qaInspectCloseBtn" style="flex:1;">
+              Close Inspector
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Fullscreen Admin Dashboard Modal -->
   <div class="admin-dashboard-overlay" id="adminDashboardModal">
     <div class="admin-dashboard-container">
@@ -749,6 +960,11 @@
           <button class="admin-nav-item" data-admin-tab="settings">
             <i class="fa-solid fa-sliders"></i>
             <span>Site Banner & Config</span>
+          </button>
+          <button class="admin-nav-item" data-admin-tab="qa">
+            <i class="fa-solid fa-bug"></i>
+            <span>QA & Bug Reports</span>
+            <span class="admin-badge-count" id="adminQaBadge">0</span>
           </button>
         </nav>
 
@@ -1066,6 +1282,118 @@
                 </button>
               </div>
 
+            </div>
+          </div>
+
+          <!-- TAB 7: QA & BUG REPORTS MANAGER -->
+          <div class="admin-tab-content" id="tab-admin-qa" style="display:none;">
+            <!-- QA KPI Stats -->
+            <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 1.5rem;">
+              <div class="kpi-card">
+                <div class="kpi-icon" style="background:rgba(232, 80, 29, 0.15); color:var(--primary-accent);">
+                  <i class="fa-solid fa-bug"></i>
+                </div>
+                <div class="kpi-info">
+                  <span class="kpi-label">Total Bug Reports</span>
+                  <h3 class="kpi-val" id="adminQaKpiTotal">0</h3>
+                  <span class="kpi-sub">Across customer submissions</span>
+                </div>
+              </div>
+
+              <div class="kpi-card">
+                <div class="kpi-icon" style="background:rgba(231, 76, 60, 0.15); color:#e74c3c;">
+                  <i class="fa-solid fa-circle-exclamation"></i>
+                </div>
+                <div class="kpi-info">
+                  <span class="kpi-label">New / Open Issues</span>
+                  <h3 class="kpi-val" id="adminQaKpiNew">0</h3>
+                  <span class="kpi-sub">Pending initial triage</span>
+                </div>
+              </div>
+
+              <div class="kpi-card">
+                <div class="kpi-icon" style="background:rgba(241, 196, 15, 0.15); color:#f1c40f;">
+                  <i class="fa-solid fa-spinner"></i>
+                </div>
+                <div class="kpi-info">
+                  <span class="kpi-label">In Progress</span>
+                  <h3 class="kpi-val" id="adminQaKpiInProgress">0</h3>
+                  <span class="kpi-sub">Active fix attempts</span>
+                </div>
+              </div>
+
+              <div class="kpi-card">
+                <div class="kpi-icon" style="background:rgba(46, 204, 113, 0.15); color:#2ecc71;">
+                  <i class="fa-solid fa-circle-check"></i>
+                </div>
+                <div class="kpi-info">
+                  <span class="kpi-label">Resolved & Solved</span>
+                  <h3 class="kpi-val" id="adminQaKpiSolved">0</h3>
+                  <span class="kpi-sub">Verified closed bugs</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- QA Filter & Actions Controls -->
+            <div class="admin-card-box" style="margin-bottom: 1.5rem; padding: 1.2rem;">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+                <div style="display:flex; gap:0.8rem; align-items:center; flex:1; min-width:280px;">
+                  <div class="admin-search-wrap" style="flex:1;">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="adminQaSearch" placeholder="Search bugs by ID, topic, username, description...">
+                  </div>
+                </div>
+                
+                <div style="display:flex; gap:0.8rem; align-items:center; flex-wrap:wrap;">
+                  <div style="display:flex; align-items:center; gap:0.4rem;">
+                    <label style="font-size:0.8rem; color:var(--text-muted); white-space:nowrap;">Status:</label>
+                    <select id="adminQaStatusFilter" style="padding:0.45rem 0.8rem; font-size:0.85rem; border-radius:6px; background:var(--bg-card); color:#fff; border:1px solid var(--border-color);">
+                      <option value="all">All Statuses</option>
+                      <option value="New">New</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Solved">Solved</option>
+                    </select>
+                  </div>
+
+                  <div style="display:flex; align-items:center; gap:0.4rem;">
+                    <label style="font-size:0.8rem; color:var(--text-muted); white-space:nowrap;">Priority:</label>
+                    <select id="adminQaPriorityFilter" style="padding:0.45rem 0.8rem; font-size:0.85rem; border-radius:6px; background:var(--bg-card); color:#fff; border:1px solid var(--border-color);">
+                      <option value="all">All Priorities</option>
+                      <option value="Critical">Critical</option>
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Low">Low</option>
+                    </select>
+                  </div>
+
+                  <button class="btn btn-primary" id="adminOpenQaModalBtn" style="padding:0.5rem 1rem; font-size:0.85rem;">
+                    <i class="fa-solid fa-plus"></i> New Report
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Admin QA Table with strict required order -->
+            <div class="admin-card-box">
+              <div class="table-responsive">
+                <table class="admin-table qa-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 95px;">ID</th>
+                      <th>Topic</th>
+                      <th style="width: 110px;">Priority</th>
+                      <th style="width: 140px;">Username</th>
+                      <th style="width: 130px;">Proof (Screenshot)</th>
+                      <th style="width: 160px;">Status</th>
+                      <th style="width: 150px;">Fix Attempts</th>
+                      <th style="width: 110px; text-align:right;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminQaTableBody">
+                    <!-- Injected dynamically via JS -->
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
