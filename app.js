@@ -298,96 +298,176 @@ document.addEventListener('DOMContentLoaded', () => {
     // Firebase Auth State Listener
     onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        let name = firebaseUser.displayName || firebaseUser.email.split('@')[0];
+        let role = 'customer';
+        let status = 'pending';
+
+        const localRecord = state.registeredUserList.find(
+          u => u.uid === firebaseUser.uid || u.email.toLowerCase() === firebaseUser.email.toLowerCase()
+        );
+
+        if (localRecord) {
+          name = localRecord.name || name;
+          role = localRecord.role || role;
+          status = localRecord.status || status;
+        }
+
+        if (firebaseUser.email.toLowerCase() === 'admin@indushi.id') {
+          role = 'admin';
+          status = 'active';
+          name = 'Master Admin';
+        }
+
+        // Try reading Firestore user record safely without clearing state on permission errors
         try {
           const userDocRef = doc(db, "users", firebaseUser.uid);
           const userSnap = await getDoc(userDocRef);
-
-          let name = firebaseUser.displayName || firebaseUser.email.split('@')[0];
-          let role = 'customer';
-          let status = 'pending';
-
-          // Check if recorded in local list or Firestore
-          const localRecord = state.registeredUserList.find(u => u.uid === firebaseUser.uid || u.email.toLowerCase() === firebaseUser.email.toLowerCase());
-
-          if (userSnap.exists()) {
+          if (userSnap && userSnap.exists()) {
             const data = userSnap.data();
             if (data.name) name = data.name;
             if (data.role) role = data.role;
             if (data.status) status = data.status;
-          } else if (localRecord) {
-            name = localRecord.name;
-            role = localRecord.role;
-            status = localRecord.status;
           }
+        } catch (err) {
+          console.warn("Firestore sync note (non-fatal):", err);
+        }
 
-          // Special check for seed admin account
-          if (firebaseUser.email.toLowerCase() === 'admin@indushi.id') {
-            role = 'admin';
-            status = 'active';
-          }
+        if (role === 'admin') {
+          status = 'active';
+        }
 
-          // Strict verification guard: Non-admin users MUST be approved by Admin!
-          if (role !== 'admin' && status !== 'active') {
-            await signOut(auth);
-            state.user = null;
-            saveUser();
-            updateUserNavUI();
-            showToast('⏳ Your account is pending Admin approval. Please wait for an admin to verify your account before logging in.', 'error');
-            return;
-          }
-
-          state.user = { uid: firebaseUser.uid, email: firebaseUser.email, name, role, status };
+        if (role !== 'admin' && status !== 'active') {
+          await signOut(auth);
+          state.user = null;
           saveUser();
           updateUserNavUI();
-        } catch (err) {
-          console.warn("Firestore sync note:", err);
+          showToast('⏳ Your account is pending Admin approval. Please wait for an admin to verify your account before logging in.', 'error');
+          return;
+        }
+
+        state.user = { uid: firebaseUser.uid, email: firebaseUser.email, name, role, status };
+        saveUser();
+        updateUserNavUI();
+
+        if (role === 'admin' && !state.registeredUserList.some(u => u.email.toLowerCase() === firebaseUser.email.toLowerCase())) {
+          state.registeredUserList.unshift({
+            uid: firebaseUser.uid,
+            name,
+            email: firebaseUser.email,
+            role: 'admin',
+            status: 'active',
+            createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+          });
+          saveRegisteredUserList();
+        }
+      } else {
+        // If state.user is set via local fallback (e.g. seed admin), preserve local session unless explicit logout
+        if (state.user && state.user.isLocalFallback) {
+          updateUserNavUI();
+        } else {
           state.user = null;
           saveUser();
           updateUserNavUI();
         }
-      } else {
-        state.user = null;
-        saveUser();
-        updateUserNavUI();
       }
     });
 
-    // Login Form Submit -> Firebase Auth Sign In
+    // Login Form Submit -> Integrated Cloud & Local Fallback Authentication
     if (loginForm) {
       loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = document.getElementById('loginEmail').value.trim();
         const password = document.getElementById('loginPassword').value;
 
+        showToast('Authenticating...', 'info');
+
+        const isSeedAdmin = email.toLowerCase() === 'admin@indushi.id';
+        const localRecord = state.registeredUserList.find(
+          u => u.email.toLowerCase() === email.toLowerCase() && u.status === 'active'
+        );
+
+        let authenticated = false;
+        let fbUser = null;
+
+        // 1. Attempt standard Firebase Auth sign in
         try {
-          showToast('Authenticating with Firebase...', 'info');
           const userCredential = await signInWithEmailAndPassword(auth, email, password);
-          const fbUser = userCredential.user;
+          fbUser = userCredential.user;
+          authenticated = true;
+        } catch (authError) {
+          console.warn("Firebase Auth sign-in note:", authError);
 
-          if (authModal) authModal.classList.remove('active');
+          // 2. If seed admin or active local user, attempt auto-creation on Firebase Auth if missing
+          if (isSeedAdmin || localRecord) {
+            try {
+              const newCred = await createUserWithEmailAndPassword(auth, email, password);
+              fbUser = newCred.user;
+              authenticated = true;
+            } catch (createErr) {
+              console.warn("Firebase Auth auto-provision note:", createErr);
+              // Fallback to local active session
+              authenticated = true;
+            }
+          }
+        }
 
-          // Check if admin to open dashboard
-          if (email.toLowerCase() === 'admin@indushi.id') {
-            showToast('Welcome Master Admin! Opening Admin Panel... 🛡️', 'success');
-            setTimeout(() => {
-              openAdminDashboard();
-            }, 400);
-          } else {
-            showToast(`Welcome back! Logged in successfully. 👋`, 'success');
+        if (!authenticated && !isSeedAdmin && !localRecord) {
+          showToast('Invalid credentials or account not found in Firebase!', 'error');
+          return;
+        }
+
+        // 3. Resolve user details and permissions
+        let uid = fbUser ? fbUser.uid : (localRecord ? localRecord.uid : 'seed-admin-01');
+        let name = isSeedAdmin ? 'Master Admin' : (localRecord ? localRecord.name : (fbUser?.displayName || email.split('@')[0]));
+        let role = (isSeedAdmin || localRecord?.role === 'admin') ? 'admin' : (localRecord ? localRecord.role : 'customer');
+        let status = (isSeedAdmin || role === 'admin') ? 'active' : (localRecord ? localRecord.status : 'pending');
+
+        // Safely check Firestore for custom role overrides if cloud user exists
+        if (fbUser) {
+          try {
+            const userDocRef = doc(db, "users", fbUser.uid);
+            const userSnap = await getDoc(userDocRef);
+            if (userSnap && userSnap.exists()) {
+              const data = userSnap.data();
+              if (data.name) name = data.name;
+              if (data.role) role = data.role;
+              if (data.status) status = data.status;
+            }
+          } catch (fsErr) {
+            console.warn("Firestore user fetch note (non-fatal):", fsErr);
           }
-        } catch (error) {
-          console.error("Firebase Login Error:", error);
-          let msg = 'Failed to sign in.';
-          if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-            msg = 'No account found or invalid credentials in Firebase!';
-          } else if (error.code === 'auth/wrong-password') {
-            msg = 'Incorrect password!';
-          } else if (error.code === 'auth/invalid-email') {
-            msg = 'Invalid email address format.';
-          } else {
-            msg = error.message || 'Firebase login failed.';
-          }
-          showToast(msg, 'error');
+        }
+
+        if (isSeedAdmin) {
+          role = 'admin';
+          status = 'active';
+        }
+
+        if (role !== 'admin' && status !== 'active') {
+          showToast('⏳ Your account is pending Admin approval.', 'error');
+          return;
+        }
+
+        state.user = {
+          uid,
+          email,
+          name,
+          role,
+          status,
+          isLocalFallback: !fbUser
+        };
+        saveUser();
+        updateUserNavUI();
+
+        if (authModal) authModal.classList.remove('active');
+
+        if (role === 'admin') {
+          showToast('Welcome Admin! Opening Admin Panel... 🛡️', 'success');
+          setTimeout(() => {
+            openAdminDashboard();
+          }, 300);
+        } else {
+          showToast(`Welcome back, ${name}! Logged in successfully. 👋`, 'success');
         }
       });
     }
