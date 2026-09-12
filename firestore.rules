@@ -1,0 +1,36 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users collection
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+    
+    // Products collection (Menu items)
+    match /products/{productId} {
+      allow read, write: if true;
+    }
+
+    // Customer Orders collection
+    match /orders/{orderId} {
+      allow read, write: if true;
+    }
+
+    // Table Reservations collection
+    match /bookings/{bookingId} {
+      allow read, write: if true;
+    }
+
+    // Site Settings collection
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // Global fallback rule
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
