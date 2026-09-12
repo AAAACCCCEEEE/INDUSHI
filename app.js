@@ -27,6 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
         email: 'admin@indushi.id',
         role: 'admin',
         status: 'active',
+        Verified: true,
+        Created_at: { date: '2026-09-01', timestamp: 1788220800000 },
         createdAt: '2026-09-01 10:00'
       },
       {
@@ -35,6 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
         email: 'user@indushi.id',
         role: 'customer',
         status: 'active',
+        Verified: true,
+        Created_at: { date: '2026-09-02', timestamp: 1788314400000 },
         createdAt: '2026-09-02 12:00'
       }
     ],
@@ -472,7 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Register Form Submit -> Firebase Auth Create User (Always role: customer, status: pending)
+    // Register Form Submit -> Firebase Auth Create User (Role: customer, status: pending)
     if (registerForm) {
       registerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -485,21 +489,34 @@ document.addEventListener('DOMContentLoaded', () => {
           const userCredential = await createUserWithEmailAndPassword(auth, email, password);
           const fbUser = userCredential.user;
 
-          // Always set role as customer and status as pending!
+          // Always set role as customer and status as pending for new accounts!
           const role = 'customer';
           const status = 'pending';
-          const createdAt = new Date().toISOString().replace('T', ' ').substring(0, 16);
+          const isVerified = false;
+          const now = new Date();
+          const formattedCreatedAt = now.toISOString().replace('T', ' ').substring(0, 16);
+          const dateStr = now.toISOString().split('T')[0];
 
-          // Save user profile to Firestore
+          // Document data with uid, customer role, Verified, and Created_at object
+          const userDocData = {
+            uid: fbUser.uid,
+            email: email,
+            name: name,
+            role: role,
+            status: status,
+            Verified: isVerified,
+            verified: isVerified,
+            Created_at: {
+              date: dateStr,
+              timestamp: now.getTime()
+            },
+            createdAt: formattedCreatedAt
+          };
+
+          // Save user profile directly to Firestore under document ID "users/{fbUser.uid}"
           try {
-            await setDoc(doc(db, "users", fbUser.uid), {
-              uid: fbUser.uid,
-              email: email,
-              name: name,
-              role: role,
-              status: status,
-              createdAt: createdAt
-            });
+            await setDoc(doc(db, "users", fbUser.uid), userDocData);
+            console.log("Firestore document stored successfully for UID:", fbUser.uid, userDocData);
           } catch (fsErr) {
             console.warn("Firestore user creation note:", fsErr);
           }
@@ -511,7 +528,12 @@ document.addEventListener('DOMContentLoaded', () => {
             email,
             role,
             status,
-            createdAt
+            Verified: isVerified,
+            Created_at: {
+              date: dateStr,
+              timestamp: now.getTime()
+            },
+            createdAt: formattedCreatedAt
           };
 
           const existingIdx = state.registeredUserList.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
@@ -529,7 +551,7 @@ document.addEventListener('DOMContentLoaded', () => {
           updateUserNavUI();
 
           if (authModal) authModal.classList.remove('active');
-          showToast(`🎉 Registration request submitted! Your account is now pending Admin approval.`, 'success');
+          showToast(`🎉 Registration request submitted! UID: ${fbUser.uid.substring(0, 8)}... Pending Admin approval.`, 'success');
         } catch (error) {
           console.error("Firebase Register Error:", error);
           let msg = 'Failed to register account in Firebase.';
@@ -1492,18 +1514,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (targetUser) {
           targetUser.status = 'active';
+          targetUser.Verified = true;
+          targetUser.verified = true;
           saveRegisteredUserList();
 
-          // Sync status to Firestore
+          // Sync status and Verified to Firestore
           try {
-            await setDoc(doc(db, "users", uid), { status: 'active' }, { merge: true });
+            await setDoc(doc(db, "users", uid), {
+              status: 'active',
+              Verified: true,
+              verified: true
+            }, { merge: true });
           } catch (e) {
             console.warn("Firestore status approve update note:", e);
           }
 
           renderAdminUsers();
           renderAdminOverview();
-          showToast(`User ${email} approved! Account is now active. ✅`, 'success');
+          showToast(`User ${email} approved! Account is now active & verified. ✅`, 'success');
         }
       });
     });
