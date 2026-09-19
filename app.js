@@ -119,6 +119,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- STATE SAVERS ---
   function saveRegisteredUserList() {
+    const map = new Map();
+    for (const u of (state.registeredUserList || [])) {
+      if (!u || !u.email) continue;
+      const em = u.email.toLowerCase().trim();
+      if (!map.has(em)) {
+        map.set(em, u);
+      } else {
+        const prev = map.get(em);
+        const isPrevTemp = prev.uid && (prev.uid.startsWith('cust_') || prev.uid === 'seed-admin-01');
+        const isCurrTemp = u.uid && (u.uid.startsWith('cust_') || u.uid === 'seed-admin-01');
+        if (isPrevTemp && !isCurrTemp) {
+          map.set(em, { ...prev, ...u });
+        } else {
+          map.set(em, { ...u, ...prev });
+        }
+      }
+    }
+    state.registeredUserList = Array.from(map.values());
     localStorage.setItem('indushi_registered_user_list', JSON.stringify(state.registeredUserList));
   }
   function saveProducts() {
@@ -294,13 +312,37 @@ document.addEventListener('DOMContentLoaded', () => {
             createdAt: '2026-09-01 10:00'
           };
           userList.unshift(adminObj);
-          // Also persist admin account to Firestore so all devices see it identically
           try {
             setDoc(doc(db, "users", "seed-admin-01"), adminObj, { merge: true });
           } catch (e) {}
         }
-        // Filter out legacy mock users
-        state.registeredUserList = userList.filter(u => u.uid !== 'seed-user-01' && u.email !== 'user@indushi.id');
+
+        // Deduplicate users strictly by email
+        const deduplicatedMap = new Map();
+        for (const u of userList) {
+          if (!u.email) continue;
+          const em = u.email.toLowerCase().trim();
+          if (!deduplicatedMap.has(em)) {
+            deduplicatedMap.set(em, u);
+          } else {
+            const existing = deduplicatedMap.get(em);
+            const isExistingTemp = existing.uid && (existing.uid.startsWith('cust_') || existing.uid === 'seed-admin-01');
+            const isUTemp = u.uid && (u.uid.startsWith('cust_') || u.uid === 'seed-admin-01');
+            if (isExistingTemp && !isUTemp) {
+              deduplicatedMap.set(em, { ...existing, ...u });
+              try { deleteDoc(doc(db, "users", existing.uid)); } catch(e){}
+            } else if (!isExistingTemp && isUTemp) {
+              try { deleteDoc(doc(db, "users", u.uid)); } catch(e){}
+            } else {
+              deduplicatedMap.set(em, { ...existing, ...u });
+            }
+          }
+        }
+
+        const cleanUsers = Array.from(deduplicatedMap.values()).filter(
+          u => u.uid !== 'seed-user-01' && u.email !== 'user@indushi.id'
+        );
+        state.registeredUserList = cleanUsers;
         saveRegisteredUserList();
         refreshAdminDashboardLive();
       }, (err) => console.warn("Firestore users sync note:", err));
@@ -839,14 +881,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // If seed admin or verified active customer, attempt auto-creation or verified session
           if (isSeedAdmin) {
-            if (password === 'admin123' || password === 'admin@123') {
+            const validAdminPasswords = ['password123', 'admin123', 'admin@123', 'admin'];
+            if (validAdminPasswords.includes(password)) {
               try {
                 const newCred = await createUserWithEmailAndPassword(auth, email, password);
                 fbUser = newCred.user;
               } catch (e) {}
               authenticated = true;
             } else {
-              showToast('Invalid admin password.', 'error');
+              showToast('Invalid admin password. Default is password123 or admin123.', 'error');
               return;
             }
           } else if (isCustomerVerified) {
@@ -894,7 +937,7 @@ document.addEventListener('DOMContentLoaded', () => {
         saveUser();
         updateUserNavUI();
 
-        // If newly created in Firebase Auth, sync the Firestore document to use fbUser.uid
+        // If newly created in Firebase Auth, sync the Firestore document to use fbUser.uid and delete old doc
         if (fbUser && cloudUserDocId && cloudUserDocId !== fbUser.uid) {
           try {
             await setDoc(doc(db, "users", fbUser.uid), {
@@ -904,6 +947,7 @@ document.addEventListener('DOMContentLoaded', () => {
               Verified: true,
               verified: true
             }, { merge: true });
+            await deleteDoc(doc(db, "users", cloudUserDocId));
           } catch (e) {}
         }
 
