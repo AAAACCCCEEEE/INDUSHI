@@ -138,6 +138,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function saveUser() {
     if (state.user) {
       localStorage.setItem('indushi_user', JSON.stringify(state.user));
+    } else {
+      localStorage.removeItem('indushi_user');
+      sessionStorage.removeItem('indushi_user');
     }
   }
 
@@ -1178,18 +1181,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function performLogout() {
+  async function performLogout(e) {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     try {
-      await signOut(auth);
+      if (auth && auth.currentUser) {
+        await signOut(auth);
+      }
     } catch (e) {
       console.warn("Firebase SignOut note:", e);
     }
     state.user = null;
     saveUser();
+    localStorage.removeItem('indushi_user');
+    sessionStorage.removeItem('indushi_user');
+    sessionStorage.removeItem('indushi_auth_redirect');
     updateUserNavUI();
     if (adminDashboardModal) adminDashboardModal.classList.remove('active');
-    router.navigate('/home');
-    showToast('Logged out of Firebase session.', 'info');
+    router.navigate('/home', { replace: true });
+    showToast('Logged out successfully.', 'info');
   }
 
   function updateUserNavUI() {
@@ -3897,6 +3906,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (checkoutModal) checkoutModal.classList.add('active');
       },
       openAuthModal: (mode) => {
+        if (state.user) {
+          if (state.user.role === 'admin') {
+            router.navigate('/admin/overview', { replace: true });
+          } else {
+            router.navigate('/home', { replace: true });
+          }
+          return;
+        }
         if (authModal) {
           authModal.classList.add('active');
           if (mode === 'register') {
