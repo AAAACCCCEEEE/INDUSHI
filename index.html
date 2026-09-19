@@ -12,84 +12,87 @@
 </head>
 <body>
 
-  <!-- Top Announcement Bar -->
-  <div class="announcement-bar" id="announcementBar">
-    <div class="container announcement-content">
-      <span class="announcement-badge">🔥 SPECIAL PROMO</span>
-      <span id="announcementText">Get 20% OFF on all Signature Rolls with code INDUSHIFUSION20!</span>
-      <button class="close-announcement" id="closeAnnouncementBtn">&times;</button>
-    </div>
-  </div>
-
-  <!-- Top Navigation Bar -->
-  <nav class="navbar" id="navbar">
-    <div class="container nav-container">
-      <a href="#home" class="brand-logo">
-        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="50" cy="50" r="45" fill="#121212" stroke="#E8501D" stroke-width="3"/>
-          <path d="M50 15C30 15 20 35 20 50C20 70 38 82 50 82C62 82 80 70 80 50C80 35 70 15 50 15Z" fill="url(#flameGrad)"/>
-          <circle cx="50" cy="53" r="22" fill="#1e1e1e" stroke="#ffffff" stroke-width="4"/>
-          <circle cx="50" cy="53" r="12" fill="#E8501D"/>
-          <path d="M72 32C78 40 76 52 70 58C64 64 56 60 52 52" stroke="#FF7954" stroke-width="4" stroke-linecap="round"/>
-          <defs>
-            <linearGradient id="flameGrad" x1="20" y1="15" x2="80" y2="82" gradientUnits="userSpaceOnUse">
-              <stop stop-color="#FF7954"/>
-              <stop offset="1" stop-color="#E8501D"/>
-            </linearGradient>
-          </defs>
-        </svg>
-        <div class="brand-title">
-          INDUSHI
-          <span class="sub">INDONESIAN SUSHI</span>
-        </div>
-      </a>
-
-      <ul class="nav-links" id="navLinks">
-        <li><a href="#/home" class="nav-link active">Home</a></li>
-        <li class="nav-item-dropdown">
-          <a href="#/menu" class="nav-link dropdown-toggle" id="menuDropdownToggle">
-            Menu <i class="fa-solid fa-chevron-down dropdown-arrow"></i>
-          </a>
-          <ul class="dropdown-menu" id="menuDropdown">
-            <li><a href="#/menu" class="dropdown-item"><i class="fa-solid fa-utensils"></i> Signatures</a></li>
-            <li><a href="#/builder" class="dropdown-item"><i class="fa-solid fa-sliders"></i> Custom Builder</a></li>
-            <li><a href="#/platters" class="dropdown-item"><i class="fa-solid fa-boxes-stacked"></i> Platter Towers</a></li>
-          </ul>
-        </li>
-        <li><a href="#/story" class="nav-link">Our Story</a></li>
-        <li><a href="#/qa" class="nav-link">QA & Bugs</a></li>
-      </ul>
-
-      <div class="nav-actions">
-        <button class="btn btn-outline nav-routes-btn" id="openRoutesModalNavBtn" title="Track & Explore All Pages (Ctrl+K)">
-          <i class="fa-solid fa-map-location-dot"></i>
-          <span class="btn-text">Routes</span>
-        </button>
-
-        <button class="btn btn-outline nav-book-btn" id="bookTableNavBtn" title="Book a Table">
-          <i class="fa-solid fa-calendar-check"></i>
-          <span class="btn-text">Book Table</span>
-        </button>
-
-        <button class="cart-icon-btn" id="openCartBtn" title="View Order Cart">
-          <i class="fa-solid fa-bag-shopping"></i>
-          <span class="cart-badge" id="cartBadgeCount">0</span>
-        </button>
-
-        <!-- Login / User Profile Container -->
-        <div class="user-nav-container" id="userNavContainer">
-          <button class="btn btn-primary nav-login-btn" id="openAuthModalBtn">
-            <i class="fa-solid fa-user"></i>
-            <span class="btn-text">Login</span>
-          </button>
-        </div>
-
-        <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle navigation menu">
-          <i class="fa-solid fa-bars"></i>
-        </button>
+  <!-- Site Header (Wraps Announcement Bar and Navbar together so they never overlap) -->
+  <header class="site-header" id="siteHeader">
+    <!-- Top Announcement Bar -->
+    <div class="announcement-bar" id="announcementBar">
+      <div class="container announcement-content">
+        <span class="announcement-badge">🔥 SPECIAL PROMO</span>
+        <span id="announcementText">Get 20% OFF on all Signature Rolls with code INDUSHIFUSION20!</span>
+        <button class="close-announcement" id="closeAnnouncementBtn" aria-label="Close promo banner">&times;</button>
       </div>
     </div>
-  </nav>
+
+    <!-- Top Navigation Bar -->
+    <nav class="navbar" id="navbar">
+      <div class="container nav-container">
+        <a href="#home" class="brand-logo">
+          <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="45" fill="#121212" stroke="#E8501D" stroke-width="3"/>
+            <path d="M50 15C30 15 20 35 20 50C20 70 38 82 50 82C62 82 80 70 80 50C80 35 70 15 50 15Z" fill="url(#flameGrad)"/>
+            <circle cx="50" cy="53" r="22" fill="#1e1e1e" stroke="#ffffff" stroke-width="4"/>
+            <circle cx="50" cy="53" r="12" fill="#E8501D"/>
+            <path d="M72 32C78 40 76 52 70 58C64 64 56 60 52 52" stroke="#FF7954" stroke-width="4" stroke-linecap="round"/>
+            <defs>
+              <linearGradient id="flameGrad" x1="20" y1="15" x2="80" y2="82" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#FF7954"/>
+                <stop offset="1" stop-color="#E8501D"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <div class="brand-title">
+            INDUSHI
+            <span class="sub">INDONESIAN SUSHI</span>
+          </div>
+        </a>
+
+        <ul class="nav-links" id="navLinks">
+          <li><a href="#/home" class="nav-link active">Home</a></li>
+          <li class="nav-item-dropdown">
+            <a href="#/menu" class="nav-link dropdown-toggle" id="menuDropdownToggle">
+              Menu <i class="fa-solid fa-chevron-down dropdown-arrow"></i>
+            </a>
+            <ul class="dropdown-menu" id="menuDropdown">
+              <li><a href="#/menu" class="dropdown-item"><i class="fa-solid fa-utensils"></i> Signatures</a></li>
+              <li><a href="#/builder" class="dropdown-item"><i class="fa-solid fa-sliders"></i> Custom Builder</a></li>
+              <li><a href="#/platters" class="dropdown-item"><i class="fa-solid fa-boxes-stacked"></i> Platter Towers</a></li>
+            </ul>
+          </li>
+          <li><a href="#/story" class="nav-link">Our Story</a></li>
+          <li id="qaNavLi" style="display:none;"><a href="#/qa" class="nav-link">QA & Bugs</a></li>
+        </ul>
+
+        <div class="nav-actions">
+          <button class="btn btn-outline nav-routes-btn" id="openRoutesModalNavBtn" title="Track & Explore All Pages (Ctrl+K)" style="display:none;">
+            <i class="fa-solid fa-map-location-dot"></i>
+            <span class="btn-text">Routes</span>
+          </button>
+
+          <button class="btn btn-outline nav-book-btn" id="bookTableNavBtn" title="Book a Table">
+            <i class="fa-solid fa-calendar-check"></i>
+            <span class="btn-text">Book Table</span>
+          </button>
+
+          <button class="cart-icon-btn" id="openCartBtn" title="View Order Cart">
+            <i class="fa-solid fa-bag-shopping"></i>
+            <span class="cart-badge" id="cartBadgeCount">0</span>
+          </button>
+
+          <!-- Login / User Profile Container -->
+          <div class="user-nav-container" id="userNavContainer">
+            <button class="btn btn-primary nav-login-btn" id="openAuthModalBtn">
+              <i class="fa-solid fa-user"></i>
+              <span class="btn-text">Login</span>
+            </button>
+          </div>
+
+          <button class="mobile-nav-toggle" id="mobileNavToggle" aria-label="Toggle navigation menu">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+        </div>
+      </div>
+    </nav>
+  </header>
 
   <!-- Hero Slider Section -->
   <section class="hero" id="home">
@@ -464,8 +467,8 @@
     </div>
   </section>
 
-  <!-- QA & Bug Reporting Section -->
-  <section class="qa-section" id="qa">
+  <!-- QA & Bug Reporting Section (Admin-Only Portal) -->
+  <section class="qa-section" id="qa" style="display: none;">
     <div class="container">
       <div class="section-header">
         <div class="section-subtitle"><i class="fa-solid fa-bug"></i> Quality Assurance & Bug Portal</div>
@@ -543,7 +546,7 @@
             <li><a href="#/builder">Custom Roll Builder</a></li>
             <li><a href="#/platters">Catering Platters</a></li>
             <li><a href="#/story">Our Story</a></li>
-            <li><a href="#/routes" style="color:var(--secondary-accent);"><i class="fa-solid fa-map-location-dot"></i> All Routes (Ctrl+K)</a></li>
+            <li id="footerRoutesLi" style="display:none;"><a href="#/routes" style="color:var(--secondary-accent);"><i class="fa-solid fa-map-location-dot"></i> All Routes (Ctrl+K)</a></li>
           </ul>
         </div>
 
@@ -821,6 +824,20 @@
             </button>
             <button type="button" class="btn btn-outline qa-btn-clear-image" id="qaClearImageBtn" style="display:none; padding:0.65rem 0.9rem; font-size:0.8rem; white-space:nowrap;">
               <i class="fa-solid fa-trash-can"></i> Clear Image
+            </button>
+          </div>
+
+          <!-- Attached Screenshot Notification & Remove Card -->
+          <div class="qa-attached-card" id="qaAttachedCard" style="display:none; margin-top:0.75rem; padding:0.6rem 0.9rem; background:rgba(232,80,29,0.1); border:1px solid rgba(232,80,29,0.3); border-radius:8px; align-items:center; justify-content:space-between; gap:0.8rem;">
+            <div style="display:flex; align-items:center; gap:0.75rem; overflow:hidden;">
+              <img id="qaCardThumb" src="" alt="Thumbnail" style="width:48px; height:34px; object-fit:cover; border-radius:4px; border:1px solid var(--border-color); background:#000; flex-shrink:0;">
+              <div style="overflow:hidden;">
+                <div style="font-size:0.82rem; font-weight:700; color:#fff; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;" id="qaCardLabel">Screenshot Attached</div>
+                <div style="font-size:0.72rem; color:var(--text-muted);">Annotate glitch below or remove to submit text-only report</div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-outline" id="qaRemoveCardBtn" style="color:#e74c3c; border-color:#e74c3c; background:rgba(231,76,60,0.15); padding:0.35rem 0.75rem; font-size:0.78rem; white-space:nowrap;">
+              <i class="fa-solid fa-trash-can"></i> Remove Image
             </button>
           </div>
 

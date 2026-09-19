@@ -1213,6 +1213,18 @@ document.addEventListener('DOMContentLoaded', () => {
         router.navigate('/login');
       });
     }
+
+    // Role-based visibility for Admin-only developer/management routes and QA
+    const isAdmin = Boolean(state.user && state.user.role === 'admin');
+    const routesNavBtn = document.getElementById('openRoutesModalNavBtn');
+    const qaNavLi = document.getElementById('qaNavLi');
+    const qaSection = document.getElementById('qa');
+    const footerRoutesLi = document.getElementById('footerRoutesLi');
+
+    if (routesNavBtn) routesNavBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    if (qaNavLi) qaNavLi.style.display = isAdmin ? 'block' : 'none';
+    if (qaSection) qaSection.style.display = isAdmin ? 'block' : 'none';
+    if (footerRoutesLi) footerRoutesLi.style.display = isAdmin ? 'block' : 'none';
   }
 
   // --- NAVBAR LOGIC ---
@@ -2695,6 +2707,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const qaUseSampleImageBtn = document.getElementById('qaUseSampleImageBtn');
     const qaClearImageBtn = document.getElementById('qaClearImageBtn');
     const qaRemoveImageStudioBtn = document.getElementById('qaRemoveImageStudioBtn');
+    const qaAttachedCard = document.getElementById('qaAttachedCard');
+    const qaRemoveCardBtn = document.getElementById('qaRemoveCardBtn');
+    const qaCardThumb = document.getElementById('qaCardThumb');
     const qaAnnotationStudio = document.getElementById('qaAnnotationStudio');
     const qaCanvas = document.getElementById('qaCanvas');
     const qaCanvasWrapper = document.getElementById('qaCanvasWrapper');
@@ -2828,6 +2843,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (qaAnnotationStudio) qaAnnotationStudio.style.display = 'block';
         if (qaClearImageBtn) qaClearImageBtn.style.display = 'inline-flex';
+        if (qaAttachedCard) {
+          qaAttachedCard.style.display = 'flex';
+          const thumb = document.getElementById('qaCardThumb');
+          if (thumb) thumb.src = imageSrc;
+        }
         redrawCanvas();
         if (qaCanvasHint) {
           qaCanvasHint.innerHTML = `<i class="fa-solid fa-shapes"></i> Image ready! Drag on image to highlight glitch with <strong>${activeTool === 'box' ? 'Boxes' : 'Pen'}</strong>.`;
@@ -3000,21 +3020,38 @@ document.addEventListener('DOMContentLoaded', () => {
       baseImg = null;
       annotations = [];
       if (qaProofUrl) qaProofUrl.value = '';
-      if (qaProofFile) qaProofFile.value = '';
+      if (qaProofFile) {
+        qaProofFile.value = '';
+        try {
+          qaProofFile.type = 'text';
+          qaProofFile.type = 'file';
+        } catch(e) {}
+      }
       if (ctx && qaCanvas) {
         ctx.clearRect(0, 0, qaCanvas.width, qaCanvas.height);
+        qaCanvas.width = 0;
+        qaCanvas.height = 0;
       }
       if (qaAnnotationStudio) {
         qaAnnotationStudio.style.display = 'none';
       }
+      if (qaAttachedCard) {
+        qaAttachedCard.style.display = 'none';
+      }
+      if (qaCardThumb) {
+        qaCardThumb.src = '';
+      }
       if (qaClearImageBtn) {
         qaClearImageBtn.style.display = 'none';
       }
-      showToast("Screenshot removed", "info");
+      showToast("Screenshot removed! Bug report is now text-only.", "info");
     }
 
     if (qaClearImageBtn) {
       qaClearImageBtn.addEventListener('click', clearQaImage);
+    }
+    if (qaRemoveCardBtn) {
+      qaRemoveCardBtn.addEventListener('click', clearQaImage);
     }
     if (qaRemoveImageStudioBtn) {
       qaRemoveImageStudioBtn.addEventListener('click', clearQaImage);
@@ -3073,9 +3110,10 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Public Modal Open / Close
+    // Modal Open / Close
     if (openQaModalBtn) {
       openQaModalBtn.addEventListener('click', () => {
+        clearQaImage();
         if (state.user && document.getElementById('qaUsername')) {
           document.getElementById('qaUsername').value = state.user.name || '';
         }
@@ -3085,6 +3123,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (adminOpenQaModalBtn) {
       adminOpenQaModalBtn.addEventListener('click', () => {
+        clearQaImage();
         if (state.user && document.getElementById('qaUsername')) {
           document.getElementById('qaUsername').value = state.user.name || 'Master Admin';
         }
@@ -3204,11 +3243,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         qaModal.classList.remove('active');
         qaReportForm.reset();
-        if (qaAnnotationStudio) qaAnnotationStudio.style.display = 'none';
-        if (qaClearImageBtn) qaClearImageBtn.style.display = 'none';
-        baseImg = null;
-        annotations = [];
-        if (ctx && qaCanvas) ctx.clearRect(0, 0, qaCanvas.width, qaCanvas.height);
+        clearQaImage();
 
         showToast(`Bug report ${nextId} submitted successfully! 🐞`, 'success');
 

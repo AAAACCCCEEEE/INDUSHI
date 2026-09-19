@@ -51,11 +51,12 @@ export const ROUTES = [
   {
     path: '/qa',
     aliases: ['/bugs', '/bug-tracker', '/quality'],
-    type: 'public',
-    name: 'QA & Bug Tracker',
-    title: 'QA & Bug Tracker | INDUSHI',
+    type: 'admin',
+    adminTab: 'qa',
+    name: 'Admin: QA & Bug Tracker',
+    title: 'QA & Bug Tracker | INDUSHI Admin',
     icon: 'fa-solid fa-bug',
-    description: 'Community bug reporting, visual proof annotations, and smoke test status.'
+    description: 'Internal glitch tracking and screenshot inspection studio.'
   },
 
   // Storefront Action Modals & Drawers
@@ -337,8 +338,7 @@ class Router {
       '/menu': 'menu',
       '/builder': 'builder',
       '/platters': 'platters',
-      '/story': 'story',
-      '/qa': 'qa'
+      '/story': 'story'
     };
     const sectionId = sectionMap[route.path];
     if (sectionId) {
@@ -374,9 +374,18 @@ class Router {
       case '/verification-status':
         if (this.hooks.openVerificationModal) this.hooks.openVerificationModal();
         break;
-      case '/routes':
+      case '/routes': {
+        const isAdmin = this.hooks.checkAdminAuth ? this.hooks.checkAdminAuth() : false;
+        if (!isAdmin) {
+          if (this.hooks.showToast) {
+            this.hooks.showToast('Route Navigator is reserved for Master Admin.', 'warning');
+          }
+          this.navigate('/home', { replace: true });
+          return;
+        }
         if (this.hooks.openRoutesModal) this.hooks.openRoutesModal();
         break;
+      }
     }
   }
 

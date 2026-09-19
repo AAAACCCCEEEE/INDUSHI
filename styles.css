@@ -163,14 +163,21 @@ img {
   color: #fff;
 }
 
-/* Navbar */
-.navbar {
+/* Site Header Wrapper (Keeps Announcement Bar and Navbar stacked without overlapping) */
+.site-header {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   z-index: 1000;
-  background: rgba(18, 18, 18, 0.88);
+  transition: transform 0.3s ease;
+}
+
+/* Navbar */
+.navbar {
+  position: relative;
+  width: 100%;
+  background: rgba(18, 18, 18, 0.92);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border-color);
@@ -392,7 +399,7 @@ img {
 /* Hero Section */
 .hero {
   position: relative;
-  padding-top: 130px;
+  padding-top: 155px;
   padding-bottom: 70px;
   min-height: 85vh;
   display: flex;
@@ -1563,7 +1570,7 @@ img {
   }
 
   .hero {
-    padding-top: 100px;
+    padding-top: 145px;
     padding-bottom: 40px;
     min-height: auto;
   }
@@ -1640,11 +1647,10 @@ img {
 .announcement-bar {
   background: linear-gradient(90deg, #E8501D 0%, #FF7954 100%);
   color: #ffffff;
-  padding: 0.5rem 1rem;
-  font-size: 0.85rem;
+  padding: 0.45rem 1rem;
+  font-size: 0.82rem;
   font-weight: 600;
   position: relative;
-  z-index: 1001;
   box-shadow: 0 2px 10px rgba(0,0,0,0.3);
 }
 
@@ -2458,6 +2464,10 @@ img {
   background: rgba(231, 76, 60, 0.18) !important;
   border-color: #e74c3c !important;
   color: #ff7675 !important;
+}
+
+.qa-attached-card {
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 /* Fix Attempts Counter Badge */
