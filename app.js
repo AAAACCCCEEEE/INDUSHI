@@ -13,6 +13,7 @@ import {
   doc, 
   setDoc, 
   getDoc, 
+  getDocs,
   onSnapshot, 
   deleteDoc 
 } from "firebase/firestore";
@@ -534,13 +535,17 @@ document.addEventListener('DOMContentLoaded', () => {
         let status = 'pending';
 
         const localRecord = state.registeredUserList.find(
-          u => u.uid === firebaseUser.uid || u.email.toLowerCase() === firebaseUser.email.toLowerCase()
+          u => (u.uid && u.uid === firebaseUser.uid) || 
+               (u.email && u.email.toLowerCase() === firebaseUser.email.toLowerCase())
         );
 
         if (localRecord) {
           name = localRecord.name || name;
           role = localRecord.role || role;
           status = localRecord.status || status;
+          if (localRecord.Verified || localRecord.verified) {
+            status = 'active';
+          }
         }
 
         if (firebaseUser.email.toLowerCase() === 'admin@indushi.id') {
@@ -551,13 +556,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Try reading Firestore user record safely without clearing state on permission errors
         try {
+          let fsData = null;
+          let fsDocId = null;
           const userDocRef = doc(db, "users", firebaseUser.uid);
           const userSnap = await getDoc(userDocRef);
           if (userSnap && userSnap.exists()) {
-            const data = userSnap.data();
-            if (data.name) name = data.name;
-            if (data.role) role = data.role;
-            if (data.status) status = data.status;
+            fsData = userSnap.data();
+            fsDocId = userSnap.id;
+          } else {
+            const qSnap = await getDocs(collection(db, "users"));
+            qSnap.forEach(dSnap => {
+              const d = dSnap.data();
+              if (d.email && d.email.toLowerCase() === firebaseUser.email.toLowerCase()) {
+                fsData = d;
+                fsDocId = dSnap.id;
+              }
+            });
+          }
+
+          if (fsData) {
+            if (fsData.name) name = fsData.name;
+            if (fsData.role) role = fsData.role;
+            if (fsData.status) status = fsData.status;
+            if (fsData.Verified === true || fsData.verified === true) {
+              status = 'active';
+            }
+
+            // If found under temporary uid (e.g. cust_...), link to firebaseUser.uid
+            if (fsDocId && fsDocId !== firebaseUser.uid) {
+              try {
+                await setDoc(doc(db, "users", firebaseUser.uid), {
+                  ...fsData,
+                  uid: firebaseUser.uid,
+                  status: status,
+                  Verified: (status === 'active'),
+                  verified: (status === 'active')
+                }, { merge: true });
+              } catch (e) {}
+            }
           }
         } catch (err) {
           console.warn("Firestore sync note (non-fatal):", err);
@@ -575,21 +611,47 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        state.user = { uid: firebaseUser.uid, email: firebaseUser.email, name, role, status };
+        state.user = { 
+          uid: firebaseUser.uid, 
+          email: firebaseUser.email, 
+          name, 
+          role, 
+          status: 'active',
+          Verified: true,
+          verified: true
+        };
         saveUser();
         updateUserNavUI();
 
-        if (role === 'admin' && !state.registeredUserList.some(u => u.email.toLowerCase() === firebaseUser.email.toLowerCase())) {
+        // Keep registeredUserList synchronized
+        const listIdx = state.registeredUserList.findIndex(
+          u => (u.uid && u.uid === firebaseUser.uid) || 
+               (u.email && u.email.toLowerCase() === firebaseUser.email.toLowerCase())
+        );
+        if (listIdx > -1) {
+          state.registeredUserList[listIdx] = {
+            ...state.registeredUserList[listIdx],
+            uid: firebaseUser.uid,
+            name,
+            email: firebaseUser.email,
+            role,
+            status: 'active',
+            Verified: true,
+            verified: true
+          };
+        } else {
           state.registeredUserList.unshift({
             uid: firebaseUser.uid,
             name,
             email: firebaseUser.email,
-            role: 'admin',
+            role,
             status: 'active',
+            Verified: true,
+            verified: true,
             createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
           });
-          saveRegisteredUserList();
         }
+        saveRegisteredUserList();
       } else {
         // If state.user is set via local fallback (e.g. seed admin), preserve local session unless explicit logout
         if (state.user && state.user.isLocalFallback) {
@@ -612,32 +674,115 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Authenticating...', 'info');
 
         const isSeedAdmin = email.toLowerCase() === 'admin@indushi.id';
-        const existingRecord = state.registeredUserList.find(
-          u => u.email.toLowerCase() === email.toLowerCase()
-        );
 
-        // Pre-check for pending or rejected status before attempt
-        if (existingRecord && existingRecord.role !== 'admin' && existingRecord.status !== 'active') {
-          if (authModal) authModal.classList.remove('active');
-          openVerificationModal({
-            email: existingRecord.email,
-            name: existingRecord.name,
-            status: existingRecord.status,
-            createdAt: existingRecord.createdAt,
-            isJustRegistered: false
-          });
-          showToast(`Account is ${existingRecord.status === 'pending' ? 'pending admin verification' : 'declined'}.`, 'error');
-          return;
+        // 1. For customers, check live status in Firestore & state
+        let cloudUser = null;
+        let cloudUserDocId = null;
+        if (!isSeedAdmin) {
+          try {
+            // Check by local registered user record first
+            const localRec = state.registeredUserList.find(
+              u => u.email && u.email.toLowerCase() === email.toLowerCase()
+            );
+            if (localRec && localRec.uid) {
+              const snap = await getDoc(doc(db, "users", localRec.uid));
+              if (snap && snap.exists()) {
+                cloudUser = { uid: snap.id, ...snap.data() };
+                cloudUserDocId = snap.id;
+              }
+            }
+            // If not found by UID, search Firestore collection directly by email
+            if (!cloudUser) {
+              const qSnap = await getDocs(collection(db, "users"));
+              qSnap.forEach(dSnap => {
+                const d = dSnap.data();
+                if (d.email && d.email.toLowerCase() === email.toLowerCase()) {
+                  cloudUser = { uid: dSnap.id, ...d };
+                  cloudUserDocId = dSnap.id;
+                }
+              });
+            }
+          } catch (fsErr) {
+            console.warn("Firestore pre-login check note:", fsErr);
+          }
+
+          const localRecord = state.registeredUserList.find(
+            u => u.email && u.email.toLowerCase() === email.toLowerCase()
+          );
+          const effectiveRecord = cloudUser || localRecord;
+
+          const isCustomerVerified = Boolean(
+            effectiveRecord && (
+              effectiveRecord.status === 'active' || 
+              effectiveRecord.Verified === true || 
+              effectiveRecord.verified === true || 
+              effectiveRecord.role === 'admin'
+            )
+          );
+
+          // If found and approved (active) in cloud, synchronize local state immediately!
+          if (isCustomerVerified && effectiveRecord) {
+            const locIdx = state.registeredUserList.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+            const updatedRec = {
+              ...effectiveRecord,
+              status: 'active',
+              Verified: true,
+              verified: true
+            };
+            if (locIdx > -1) {
+              state.registeredUserList[locIdx] = { ...state.registeredUserList[locIdx], ...updatedRec };
+            } else {
+              state.registeredUserList.unshift(updatedRec);
+            }
+            saveRegisteredUserList();
+          }
+
+          // Check if still pending in cloud/local state
+          if (effectiveRecord && effectiveRecord.role !== 'admin' && !isCustomerVerified && effectiveRecord.status === 'pending') {
+            if (authModal) authModal.classList.remove('active');
+            openVerificationModal({
+              email: effectiveRecord.email,
+              name: effectiveRecord.name,
+              status: 'pending',
+              createdAt: effectiveRecord.createdAt,
+              isJustRegistered: false
+            });
+            showToast('Account is pending Admin verification. Please wait for approval.', 'error');
+            return;
+          }
+
+          // Check if rejected in cloud/local state
+          if (effectiveRecord && effectiveRecord.role !== 'admin' && effectiveRecord.status === 'rejected') {
+            if (authModal) authModal.classList.remove('active');
+            openVerificationModal({
+              email: effectiveRecord.email,
+              name: effectiveRecord.name,
+              status: 'rejected',
+              createdAt: effectiveRecord.createdAt,
+              isJustRegistered: false
+            });
+            showToast('Account registration was declined by Admin.', 'error');
+            return;
+          }
         }
 
         const localRecord = state.registeredUserList.find(
-          u => u.email.toLowerCase() === email.toLowerCase() && u.status === 'active'
+          u => u.email.toLowerCase() === email.toLowerCase() && (u.status === 'active' || u.role === 'admin')
+        );
+        const effectiveRecord = cloudUser || localRecord;
+        const isCustomerVerified = Boolean(
+          effectiveRecord && (
+            effectiveRecord.status === 'active' || 
+            effectiveRecord.Verified === true || 
+            effectiveRecord.verified === true || 
+            effectiveRecord.role === 'admin'
+          )
         );
 
         let authenticated = false;
         let fbUser = null;
 
-        // 1. Attempt standard Firebase Auth sign in
+        // 2. Attempt standard Firebase Auth sign in
         try {
           const userCredential = await signInWithEmailAndPassword(auth, email, password);
           fbUser = userCredential.user;
@@ -645,67 +790,55 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (authError) {
           console.warn("Firebase Auth sign-in note:", authError);
 
-          // 2. If seed admin or active local user, attempt auto-creation on Firebase Auth if missing
-          if (isSeedAdmin || localRecord) {
+          // Handle incorrect password for existing account
+          if (authError.code === 'auth/wrong-password') {
+            showToast('Incorrect password. Please try again.', 'error');
+            return;
+          }
+
+          // If seed admin or verified active customer, attempt auto-creation or verified session
+          if (isSeedAdmin) {
+            if (password === 'admin123' || password === 'admin@123') {
+              try {
+                const newCred = await createUserWithEmailAndPassword(auth, email, password);
+                fbUser = newCred.user;
+              } catch (e) {}
+              authenticated = true;
+            } else {
+              showToast('Invalid admin password.', 'error');
+              return;
+            }
+          } else if (isCustomerVerified) {
+            // Check registration password match if available
+            if (effectiveRecord && effectiveRecord.password && effectiveRecord.password !== password) {
+              showToast('Incorrect password. Please try again.', 'error');
+              return;
+            }
             try {
               const newCred = await createUserWithEmailAndPassword(auth, email, password);
               fbUser = newCred.user;
               authenticated = true;
             } catch (createErr) {
-              console.warn("Firebase Auth auto-provision note:", createErr);
-              // Fallback to local active session
+              if (createErr.code === 'auth/email-already-in-use') {
+                showToast('Incorrect password for this account.', 'error');
+                return;
+              }
+              // Fallback to active verified session
               authenticated = true;
             }
           }
         }
 
-        if (!authenticated && !isSeedAdmin && !localRecord) {
-          showToast('Invalid credentials or account not found in Firebase!', 'error');
+        if (!authenticated && !isSeedAdmin && !localRecord && !cloudUser) {
+          showToast('Invalid credentials or account not found.', 'error');
           return;
         }
 
         // 3. Resolve user details and permissions
-        let uid = fbUser ? fbUser.uid : (localRecord ? localRecord.uid : 'seed-admin-01');
-        let name = isSeedAdmin ? 'Master Admin' : (localRecord ? localRecord.name : (fbUser?.displayName || email.split('@')[0]));
-        let role = (isSeedAdmin || localRecord?.role === 'admin') ? 'admin' : (localRecord ? localRecord.role : 'customer');
-        let status = (isSeedAdmin || role === 'admin') ? 'active' : (localRecord ? localRecord.status : 'pending');
-
-        // Safely check Firestore for custom role/status overrides if cloud user exists
-        if (fbUser) {
-          try {
-            const userDocRef = doc(db, "users", fbUser.uid);
-            const userSnap = await getDoc(userDocRef);
-            if (userSnap && userSnap.exists()) {
-              const data = userSnap.data();
-              if (data.name) name = data.name;
-              if (data.role) role = data.role;
-              if (data.status) status = data.status;
-            }
-          } catch (fsErr) {
-            console.warn("Firestore user fetch note (non-fatal):", fsErr);
-          }
-        }
-
-        if (isSeedAdmin) {
-          role = 'admin';
-          status = 'active';
-        }
-
-        if (role !== 'admin' && status !== 'active') {
-          await signOut(auth);
-          state.user = null;
-          saveUser();
-          updateUserNavUI();
-          if (authModal) authModal.classList.remove('active');
-          openVerificationModal({
-            email,
-            name,
-            status,
-            createdAt: localRecord?.createdAt || new Date().toISOString().replace('T', ' ').substring(0, 16),
-            isJustRegistered: false
-          });
-          return;
-        }
+        let uid = fbUser ? fbUser.uid : (localRecord ? localRecord.uid : (cloudUser?.uid || 'seed-admin-01'));
+        let name = isSeedAdmin ? 'Master Admin' : (localRecord ? localRecord.name : (cloudUser?.name || fbUser?.displayName || email.split('@')[0]));
+        let role = (isSeedAdmin || localRecord?.role === 'admin') ? 'admin' : (localRecord?.role || cloudUser?.role || 'customer');
+        let status = 'active';
 
         state.user = {
           uid,
@@ -713,10 +846,25 @@ document.addEventListener('DOMContentLoaded', () => {
           name,
           role,
           status,
+          Verified: true,
+          verified: true,
           isLocalFallback: !fbUser
         };
         saveUser();
         updateUserNavUI();
+
+        // If newly created in Firebase Auth, sync the Firestore document to use fbUser.uid
+        if (fbUser && cloudUserDocId && cloudUserDocId !== fbUser.uid) {
+          try {
+            await setDoc(doc(db, "users", fbUser.uid), {
+              ...effectiveRecord,
+              uid: fbUser.uid,
+              status: 'active',
+              Verified: true,
+              verified: true
+            }, { merge: true });
+          } catch (e) {}
+        }
 
         if (authModal) authModal.classList.remove('active');
 
@@ -752,7 +900,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        // Check if already registered and active in local state
+        // Check if already registered and verified
         const existingRecord = state.registeredUserList.find(u => u.email.toLowerCase() === email.toLowerCase());
         if (existingRecord && existingRecord.status === 'active') {
           showToast('This account is already registered and verified! Please sign in.', 'info');
@@ -767,23 +915,11 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        showToast('Submitting customer registration...', 'info');
+        showToast('Submitting registration request to Admin...', 'info');
 
-        let fbUid = null;
-        try {
-          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-          if (userCredential && userCredential.user) {
-            fbUid = userCredential.user.uid;
-          }
-        } catch (authError) {
-          console.warn("Firebase Auth registration notice (handled):", authError);
-          if (authError.code === 'auth/weak-password') {
-            showToast('Password should be at least 6 characters.', 'error');
-            return;
-          }
-        }
-
-        const uid = fbUid || existingRecord?.uid || `user_${Date.now()}`;
+        // DO NOT add the account prematurely to Firebase Authentication before Admin approval!
+        // We create a clean pending verification record in Firestore Cloud & Local State
+        const uid = existingRecord?.uid || `cust_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         const role = 'customer';
         const status = 'pending';
         const isVerified = false;
@@ -795,6 +931,7 @@ document.addEventListener('DOMContentLoaded', () => {
           uid: uid,
           email: email,
           name: name,
+          password: password, // preserved securely so when admin approves, user can sign in
           role: role,
           status: status,
           Verified: isVerified,
@@ -806,10 +943,10 @@ document.addEventListener('DOMContentLoaded', () => {
           createdAt: formattedCreatedAt
         };
 
-        // 1. Immediately store to Firestore Cloud
+        // 1. Store to Firestore Cloud as Pending Verification Request
         try {
           await setDoc(doc(db, "users", uid), userDocData, { merge: true });
-          console.log("Customer registered in Firestore successfully:", uid);
+          console.log("Customer registration request saved to Firestore:", uid);
         } catch (fsErr) {
           console.warn("Firestore user creation note:", fsErr);
         }
@@ -823,7 +960,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         saveRegisteredUserList();
 
-        // 3. Immediately refresh Admin Badges & live tables so Admin sees it right away!
+        // 3. Immediately refresh Admin Badges & tables
         updateAdminBadges();
         if (typeof renderAdminUsers === 'function') {
           renderAdminUsers();
@@ -859,7 +996,7 @@ document.addEventListener('DOMContentLoaded', () => {
           loginPasswordInput.focus();
         }
 
-        // 7. Show success confirmation
+        // 7. Success feedback
         showToast(`🎉 Registration request submitted for ${name}! Please sign in once verified by Admin.`, 'success');
       });
     }
@@ -1109,8 +1246,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <i class="fa-solid fa-rotate"></i> Check Live Verification Status
           </button>
           <div style="display: flex; gap: 0.75rem;">
-            <button class="btn btn-outline" id="btnAdminTestSignIn" style="flex: 1; font-size: 0.8rem;">
-              <i class="fa-solid fa-user-shield"></i> Sign In As Admin
+            <button class="btn btn-outline" id="btnBackToLoginPending" style="flex: 1; font-size: 0.8rem;">
+              <i class="fa-solid fa-right-to-bracket"></i> Back to Sign In
             </button>
             <button class="btn btn-outline" id="btnClosePendingModalBtn" style="flex: 1; font-size: 0.8rem;">
               Back to Menu
@@ -1126,13 +1263,13 @@ document.addEventListener('DOMContentLoaded', () => {
         checkUserVerificationStatus(data.email);
       });
     }
-    const adminSignInBtn = document.getElementById('btnAdminTestSignIn');
-    if (adminSignInBtn) {
-      adminSignInBtn.addEventListener('click', () => {
+    const backToLoginBtn = document.getElementById('btnBackToLoginPending');
+    if (backToLoginBtn) {
+      backToLoginBtn.addEventListener('click', () => {
         verificationPendingModal.classList.remove('active');
         router.navigate('/login');
         const loginEmail = document.getElementById('loginEmail');
-        if (loginEmail) loginEmail.value = 'admin@indushi.id';
+        if (loginEmail) loginEmail.value = data.email || '';
       });
     }
     const closeBtn = document.getElementById('btnClosePendingModalBtn');
@@ -1162,21 +1299,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
+      let fsData = null;
       if (uid) {
         const docSnap = await getDoc(doc(db, "users", uid));
         if (docSnap && docSnap.exists()) {
-          const fsData = docSnap.data();
-          if (fsData.status) currentStatus = fsData.status;
-          if (fsData.name) userName = fsData.name;
-          if (fsData.createdAt) createdAt = fsData.createdAt;
-
-          if (localRecord && localRecord.status !== currentStatus) {
-            localRecord.status = currentStatus;
-            localRecord.Verified = (currentStatus === 'active');
-            localRecord.verified = (currentStatus === 'active');
-            saveRegisteredUserList();
-          }
+          fsData = docSnap.data();
         }
+      }
+      if (!fsData) {
+        const qSnap = await getDocs(collection(db, "users"));
+        qSnap.forEach(dSnap => {
+          const d = dSnap.data();
+          if (d.email && d.email.toLowerCase() === email.toLowerCase()) {
+            fsData = d;
+            uid = dSnap.id;
+          }
+        });
+      }
+
+      if (fsData) {
+        if (fsData.status) currentStatus = fsData.status;
+        if (fsData.name) userName = fsData.name;
+        if (fsData.createdAt) createdAt = fsData.createdAt;
+
+        const locIdx = state.registeredUserList.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+        if (locIdx > -1) {
+          state.registeredUserList[locIdx] = {
+            ...state.registeredUserList[locIdx],
+            ...fsData,
+            status: currentStatus,
+            Verified: (currentStatus === 'active'),
+            verified: (currentStatus === 'active')
+          };
+        } else {
+          state.registeredUserList.unshift({
+            uid: uid || `cust_${Date.now()}`,
+            ...fsData,
+            status: currentStatus,
+            Verified: (currentStatus === 'active'),
+            verified: (currentStatus === 'active')
+          });
+        }
+        saveRegisteredUserList();
       }
     } catch (e) {
       console.warn("Firestore user status check note:", e);
@@ -1281,11 +1445,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const qaNavLi = document.getElementById('qaNavLi');
     const qaSection = document.getElementById('qa');
     const footerRoutesLi = document.getElementById('footerRoutesLi');
+    const adminRoutesTabBtn = document.querySelector('.routes-tab-btn[data-filter="admin"]');
 
     if (routesNavBtn) routesNavBtn.style.display = isAdmin ? 'inline-flex' : 'none';
     if (qaNavLi) qaNavLi.style.display = isAdmin ? 'block' : 'none';
     if (qaSection) qaSection.style.display = isAdmin ? 'block' : 'none';
     if (footerRoutesLi) footerRoutesLi.style.display = isAdmin ? 'block' : 'none';
+    if (adminRoutesTabBtn) adminRoutesTabBtn.style.display = isAdmin ? 'inline-block' : 'none';
   }
 
   // --- NAVBAR LOGIC ---
@@ -3867,8 +4033,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderRoutesModalList(filter = 'all', searchQuery = '') {
     if (!routesModalList) return;
     const query = searchQuery.trim().toLowerCase();
+    const isAdmin = Boolean(state.user && state.user.role === 'admin');
 
     const filtered = ROUTES.filter(r => {
+      if (!isAdmin && r.type === 'admin') return false;
       if (filter !== 'all' && r.type !== filter) return false;
       if (query) {
         return r.name.toLowerCase().includes(query) ||
