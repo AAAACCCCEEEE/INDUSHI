@@ -105,6 +105,15 @@ export const ROUTES = [
     description: 'New customer account registration with Admin verification.'
   },
   {
+    path: '/verification-status',
+    aliases: ['/verification', '/status'],
+    type: 'modal',
+    name: 'Verification Status',
+    title: 'Account Verification Status | INDUSHI',
+    icon: 'fa-solid fa-user-clock',
+    description: 'Check status of customer registration and admin approval.'
+  },
+  {
     path: '/routes',
     aliases: ['/sitemap', '/pages'],
     type: 'modal',
@@ -361,6 +370,9 @@ class Router {
         break;
       case '/register':
         if (this.hooks.openAuthModal) this.hooks.openAuthModal('register');
+        break;
+      case '/verification-status':
+        if (this.hooks.openVerificationModal) this.hooks.openVerificationModal();
         break;
       case '/routes':
         if (this.hooks.openRoutesModal) this.hooks.openRoutesModal();

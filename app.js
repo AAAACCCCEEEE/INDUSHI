@@ -370,6 +370,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const tabRegisterBtn = document.getElementById('tabRegisterBtn');
   const loginForm = document.getElementById('loginForm');
   const registerForm = document.getElementById('registerForm');
+  const linkCheckVerificationStatus = document.getElementById('linkCheckVerificationStatus');
+
+  // Verification Status Modal Elements
+  const verificationPendingModal = document.getElementById('verificationPendingModal');
+  const closeVerificationPendingBtn = document.getElementById('closeVerificationPendingBtn');
+  const verificationModalDynamicContent = document.getElementById('verificationModalDynamicContent');
 
   // Admin Dashboard Elements
   const adminDashboardModal = document.getElementById('adminDashboardModal');
@@ -492,6 +498,36 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // Verification Modal Helper Links & Closers
+    if (linkCheckVerificationStatus) {
+      linkCheckVerificationStatus.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (authModal) authModal.classList.remove('active');
+        const currentLoginEmail = document.getElementById('loginEmail')?.value.trim() || '';
+        openVerificationModal({ email: currentLoginEmail });
+      });
+    }
+
+    if (closeVerificationPendingBtn) {
+      closeVerificationPendingBtn.addEventListener('click', () => {
+        if (verificationPendingModal) verificationPendingModal.classList.remove('active');
+        if (window.location.hash === '#/verification-status') {
+          history.replaceState(null, '', '#/home');
+        }
+      });
+    }
+
+    if (verificationPendingModal) {
+      verificationPendingModal.addEventListener('click', (e) => {
+        if (e.target === verificationPendingModal) {
+          verificationPendingModal.classList.remove('active');
+          if (window.location.hash === '#/verification-status') {
+            history.replaceState(null, '', '#/home');
+          }
+        }
+      });
+    }
+
     // Firebase Auth State Listener
     onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
@@ -578,6 +614,24 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Authenticating...', 'info');
 
         const isSeedAdmin = email.toLowerCase() === 'admin@indushi.id';
+        const existingRecord = state.registeredUserList.find(
+          u => u.email.toLowerCase() === email.toLowerCase()
+        );
+
+        // Pre-check for pending or rejected status before attempt
+        if (existingRecord && existingRecord.role !== 'admin' && existingRecord.status !== 'active') {
+          if (authModal) authModal.classList.remove('active');
+          openVerificationModal({
+            email: existingRecord.email,
+            name: existingRecord.name,
+            status: existingRecord.status,
+            createdAt: existingRecord.createdAt,
+            isJustRegistered: false
+          });
+          showToast(`Account is ${existingRecord.status === 'pending' ? 'pending admin verification' : 'declined'}.`, 'error');
+          return;
+        }
+
         const localRecord = state.registeredUserList.find(
           u => u.email.toLowerCase() === email.toLowerCase() && u.status === 'active'
         );
@@ -618,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let role = (isSeedAdmin || localRecord?.role === 'admin') ? 'admin' : (localRecord ? localRecord.role : 'customer');
         let status = (isSeedAdmin || role === 'admin') ? 'active' : (localRecord ? localRecord.status : 'pending');
 
-        // Safely check Firestore for custom role overrides if cloud user exists
+        // Safely check Firestore for custom role/status overrides if cloud user exists
         if (fbUser) {
           try {
             const userDocRef = doc(db, "users", fbUser.uid);
@@ -644,7 +698,14 @@ document.addEventListener('DOMContentLoaded', () => {
           state.user = null;
           saveUser();
           updateUserNavUI();
-          showToast('⏳ Account pending Admin verification! Please wait for an Admin to approve your account in the Admin Panel before logging in.', 'error');
+          if (authModal) authModal.classList.remove('active');
+          openVerificationModal({
+            email,
+            name,
+            status,
+            createdAt: localRecord?.createdAt || new Date().toISOString().replace('T', ' ').substring(0, 16),
+            isJustRegistered: false
+          });
           return;
         }
 
@@ -750,7 +811,16 @@ document.addEventListener('DOMContentLoaded', () => {
           updateUserNavUI();
 
           if (authModal) authModal.classList.remove('active');
-          showToast(`🎉 Registration request submitted! UID: ${fbUser.uid.substring(0, 8)}... Pending Admin approval.`, 'success');
+          showToast(`🎉 Registration request submitted! Awaiting Admin verification.`, 'success');
+
+          // Pop up the dedicated Verification Pending confirmation modal
+          openVerificationModal({
+            email,
+            name,
+            status: 'pending',
+            createdAt: formattedCreatedAt,
+            isJustRegistered: true
+          });
         } catch (error) {
           console.error("Firebase Register Error:", error);
           let msg = 'Failed to register account in Firebase.';
@@ -768,6 +838,348 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (adminLogoutBtn) {
       adminLogoutBtn.addEventListener('click', performLogout);
+    }
+  }
+
+  // --- USER VERIFICATION & STATUS CHECKER MODAL CONTROLLER ---
+  function openVerificationModal(params = {}) {
+    if (!verificationPendingModal || !verificationModalDynamicContent) return;
+
+    let targetEmail = params.email || '';
+    let targetName = params.name || '';
+    let targetStatus = params.status || '';
+    let createdAt = params.createdAt || '';
+    let isJustRegistered = params.isJustRegistered || false;
+
+    if (targetEmail) {
+      const record = state.registeredUserList.find(u => u.email.toLowerCase() === targetEmail.toLowerCase());
+      if (record) {
+        targetName = record.name || targetName;
+        targetStatus = record.status || targetStatus;
+        createdAt = record.createdAt || createdAt;
+      }
+    }
+
+    renderVerificationModalContent({
+      email: targetEmail,
+      name: targetName,
+      status: targetStatus,
+      createdAt,
+      isJustRegistered
+    });
+
+    verificationPendingModal.classList.add('active');
+  }
+
+  function renderVerificationModalContent(data) {
+    if (!verificationModalDynamicContent) return;
+
+    // Case A: No email provided yet (Self-service query form)
+    if (!data.email) {
+      verificationModalDynamicContent.innerHTML = `
+        <div style="padding: 1rem 0;">
+          <div style="width: 60px; height: 60px; border-radius: 50%; background: rgba(232, 80, 29, 0.15); color: var(--primary-accent); font-size: 1.8rem; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.25rem;">
+            <i class="fa-solid fa-user-clock"></i>
+          </div>
+          <h2 style="font-size: 1.35rem; margin-bottom: 0.4rem; color: #fff;">Check Verification Status</h2>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">
+            Enter the email address you registered with to check if your account has been verified by our Admin.
+          </p>
+
+          <form id="checkVerificationQueryForm" style="display: flex; flex-direction: column; gap: 1rem; text-align: left;">
+            <div class="form-group">
+              <label for="queryVerificationEmail"><i class="fa-solid fa-envelope"></i> Registered Email Address</label>
+              <input type="email" id="queryVerificationEmail" placeholder="yourname@domain.com" required style="width: 100%;">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; font-weight:700;">
+              <i class="fa-solid fa-magnifying-glass"></i> Check My Verification Status
+            </button>
+            <button type="button" class="btn btn-outline" id="btnQueryBackToHome" style="width: 100%;">
+              Back to Menu
+            </button>
+          </form>
+        </div>
+      `;
+
+      const checkForm = document.getElementById('checkVerificationQueryForm');
+      if (checkForm) {
+        checkForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const emailInput = document.getElementById('queryVerificationEmail');
+          if (emailInput && emailInput.value.trim()) {
+            checkUserVerificationStatus(emailInput.value.trim());
+          }
+        });
+      }
+      const backHomeBtn = document.getElementById('btnQueryBackToHome');
+      if (backHomeBtn) {
+        backHomeBtn.addEventListener('click', () => {
+          verificationPendingModal.classList.remove('active');
+          router.navigate('/home');
+        });
+      }
+      return;
+    }
+
+    // Case B: Account is Verified & Active
+    if (data.status === 'active') {
+      verificationModalDynamicContent.innerHTML = `
+        <div style="padding: 1rem 0;">
+          <div style="width: 68px; height: 68px; border-radius: 50%; background: rgba(46, 204, 113, 0.18); color: #2ecc71; font-size: 2.2rem; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.25rem; box-shadow: 0 0 24px rgba(46, 204, 113, 0.35);">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <h2 style="font-size: 1.45rem; margin-bottom: 0.4rem; color: #fff;">Account Verified! 🎉</h2>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.25rem; line-height: 1.5;">
+            Great news, <strong>${data.name || 'Member'}</strong>! Your account has been verified and approved by the INDUSHI restaurant admin.
+          </p>
+
+          <div class="verification-card-box">
+            <div class="verification-info-row">
+              <span class="v-label"><i class="fa-solid fa-envelope"></i> Account Email</span>
+              <span class="v-val">${data.email}</span>
+            </div>
+            <div class="verification-info-row">
+              <span class="v-label"><i class="fa-solid fa-shield-halved"></i> Verification Status</span>
+              <span class="v-val"><span class="status-pulse-badge verified"><i class="fa-solid fa-circle-check"></i> Verified & Active</span></span>
+            </div>
+            ${data.createdAt ? `
+            <div class="verification-info-row">
+              <span class="v-label"><i class="fa-solid fa-calendar-check"></i> Registered Date</span>
+              <span class="v-val">${data.createdAt}</span>
+            </div>` : ''}
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1.5rem;">
+            <button class="btn btn-primary" id="btnGoToLoginFromVerification" style="width: 100%; font-weight: 700;">
+              <i class="fa-solid fa-right-to-bracket"></i> Sign In to Account
+            </button>
+            <button class="btn btn-outline" id="btnCloseVerifiedModalBtn" style="width: 100%;">
+              Back to Home
+            </button>
+          </div>
+        </div>
+      `;
+
+      const loginBtn = document.getElementById('btnGoToLoginFromVerification');
+      if (loginBtn) {
+        loginBtn.addEventListener('click', () => {
+          verificationPendingModal.classList.remove('active');
+          router.navigate('/login');
+          const loginEmail = document.getElementById('loginEmail');
+          if (loginEmail) loginEmail.value = data.email;
+        });
+      }
+      const closeBtn = document.getElementById('btnCloseVerifiedModalBtn');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+          verificationPendingModal.classList.remove('active');
+          router.navigate('/home');
+        });
+      }
+      return;
+    }
+
+    // Case C: Account is Rejected
+    if (data.status === 'rejected') {
+      verificationModalDynamicContent.innerHTML = `
+        <div style="padding: 1rem 0;">
+          <div style="width: 68px; height: 68px; border-radius: 50%; background: rgba(231, 76, 60, 0.18); color: #e74c3c; font-size: 2.2rem; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.25rem;">
+            <i class="fa-solid fa-circle-xmark"></i>
+          </div>
+          <h2 style="font-size: 1.45rem; margin-bottom: 0.4rem; color: #fff;">Registration Not Approved</h2>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.25rem; line-height: 1.5;">
+            Your registration request for <strong>${data.email}</strong> was declined by restaurant administration.
+          </p>
+
+          <div class="verification-card-box">
+            <div class="verification-info-row">
+              <span class="v-label"><i class="fa-solid fa-envelope"></i> Account Email</span>
+              <span class="v-val">${data.email}</span>
+            </div>
+            <div class="verification-info-row">
+              <span class="v-label"><i class="fa-solid fa-ban"></i> Status</span>
+              <span class="v-val"><span class="status-pulse-badge rejected"><i class="fa-solid fa-circle-xmark"></i> Declined</span></span>
+            </div>
+          </div>
+
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+            If you believe this is an error or would like to re-submit your details, please register again.
+          </p>
+
+          <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <button class="btn btn-primary" id="btnReRegisterFromVerification" style="width: 100%;">
+              <i class="fa-solid fa-user-plus"></i> Register Again
+            </button>
+            <button class="btn btn-outline" id="btnCloseRejectedModalBtn" style="width: 100%;">
+              Close
+            </button>
+          </div>
+        </div>
+      `;
+
+      const reRegBtn = document.getElementById('btnReRegisterFromVerification');
+      if (reRegBtn) {
+        reRegBtn.addEventListener('click', () => {
+          verificationPendingModal.classList.remove('active');
+          router.navigate('/register');
+        });
+      }
+      const closeBtn = document.getElementById('btnCloseRejectedModalBtn');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+          verificationPendingModal.classList.remove('active');
+          router.navigate('/home');
+        });
+      }
+      return;
+    }
+
+    // Case D: Account is Pending Review (Default)
+    verificationModalDynamicContent.innerHTML = `
+      <div style="padding: 1rem 0;">
+        <div style="width: 68px; height: 68px; border-radius: 50%; background: rgba(241, 196, 15, 0.15); color: #f1c40f; font-size: 2.2rem; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.25rem; box-shadow: 0 0 24px rgba(241, 196, 15, 0.25);">
+          <i class="fa-solid fa-hourglass-half" style="animation: statusBlink 2.2s infinite ease-in-out;"></i>
+        </div>
+        <h2 style="font-size: 1.45rem; margin-bottom: 0.4rem; color: #fff;">
+          ${data.isJustRegistered ? 'Registration Submitted! ⏳' : 'Verification Required 🔒'}
+        </h2>
+        <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.25rem; line-height: 1.5;">
+          ${data.isJustRegistered 
+            ? `Thank you, <strong>${data.name || 'valued customer'}</strong>! Your account request has been registered and is <strong>awaiting Admin verification</strong>.` 
+            : `The account <strong>${data.email}</strong> is currently pending approval by the restaurant administrator.`
+          }
+        </p>
+
+        <div class="verification-card-box">
+          ${data.name ? `
+          <div class="verification-info-row">
+            <span class="v-label"><i class="fa-solid fa-user"></i> Full Name</span>
+            <span class="v-val">${data.name}</span>
+          </div>` : ''}
+          <div class="verification-info-row">
+            <span class="v-label"><i class="fa-solid fa-envelope"></i> Account Email</span>
+            <span class="v-val">${data.email}</span>
+          </div>
+          <div class="verification-info-row">
+            <span class="v-label"><i class="fa-solid fa-shield-halved"></i> Current Status</span>
+            <span class="v-val"><span class="status-pulse-badge pending"><i class="fa-solid fa-hourglass-half"></i> Pending Admin Approval</span></span>
+          </div>
+          ${data.createdAt ? `
+          <div class="verification-info-row">
+            <span class="v-label"><i class="fa-solid fa-clock"></i> Registered At</span>
+            <span class="v-val">${data.createdAt}</span>
+          </div>` : ''}
+        </div>
+
+        <div style="background: rgba(232, 80, 29, 0.08); border: 1px solid rgba(232, 80, 29, 0.2); border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.8rem; color: #FF7954; margin-bottom: 1.25rem; text-align: left;">
+          <i class="fa-solid fa-circle-info" style="margin-right: 0.4rem;"></i>
+          <strong>Why verification?</strong> INDUSHI manually verifies accounts to ensure VIP chef seat reservations, secure payments, and prevent spam bots.
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <button class="btn btn-primary" id="btnCheckLiveStatus" style="width: 100%; font-weight:700;">
+            <i class="fa-solid fa-rotate"></i> Check Live Verification Status
+          </button>
+          <div style="display: flex; gap: 0.75rem;">
+            <button class="btn btn-outline" id="btnAdminTestSignIn" style="flex: 1; font-size: 0.8rem;">
+              <i class="fa-solid fa-user-shield"></i> Sign In As Admin
+            </button>
+            <button class="btn btn-outline" id="btnClosePendingModalBtn" style="flex: 1; font-size: 0.8rem;">
+              Back to Menu
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const checkLiveBtn = document.getElementById('btnCheckLiveStatus');
+    if (checkLiveBtn) {
+      checkLiveBtn.addEventListener('click', () => {
+        checkUserVerificationStatus(data.email);
+      });
+    }
+    const adminSignInBtn = document.getElementById('btnAdminTestSignIn');
+    if (adminSignInBtn) {
+      adminSignInBtn.addEventListener('click', () => {
+        verificationPendingModal.classList.remove('active');
+        router.navigate('/login');
+        const loginEmail = document.getElementById('loginEmail');
+        if (loginEmail) loginEmail.value = 'admin@indushi.id';
+      });
+    }
+    const closeBtn = document.getElementById('btnClosePendingModalBtn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        verificationPendingModal.classList.remove('active');
+        router.navigate('/home');
+      });
+    }
+  }
+
+  async function checkUserVerificationStatus(email) {
+    if (!email) return;
+    showToast('Checking verification status with Firebase...', 'info');
+
+    let currentStatus = 'unknown';
+    let userName = '';
+    let createdAt = '';
+    let uid = '';
+
+    const localRecord = state.registeredUserList.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (localRecord) {
+      currentStatus = localRecord.status;
+      userName = localRecord.name;
+      createdAt = localRecord.createdAt;
+      uid = localRecord.uid;
+    }
+
+    try {
+      if (uid) {
+        const docSnap = await getDoc(doc(db, "users", uid));
+        if (docSnap && docSnap.exists()) {
+          const fsData = docSnap.data();
+          if (fsData.status) currentStatus = fsData.status;
+          if (fsData.name) userName = fsData.name;
+          if (fsData.createdAt) createdAt = fsData.createdAt;
+
+          if (localRecord && localRecord.status !== currentStatus) {
+            localRecord.status = currentStatus;
+            localRecord.Verified = (currentStatus === 'active');
+            localRecord.verified = (currentStatus === 'active');
+            saveRegisteredUserList();
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Firestore user status check note:", e);
+    }
+
+    if (currentStatus === 'active') {
+      showToast('🎉 Your account is verified by Admin! You can now sign in.', 'success');
+      renderVerificationModalContent({
+        email,
+        name: userName,
+        status: 'active',
+        createdAt
+      });
+    } else if (currentStatus === 'rejected') {
+      showToast('Account registration was not approved.', 'error');
+      renderVerificationModalContent({
+        email,
+        name: userName,
+        status: 'rejected',
+        createdAt
+      });
+    } else if (currentStatus === 'pending') {
+      showToast('⏳ Account is still pending Admin verification. Please check back shortly.', 'info');
+      renderVerificationModalContent({
+        email,
+        name: userName,
+        status: 'pending',
+        createdAt
+      });
+    } else {
+      showToast('No registration record found for this email.', 'error');
     }
   }
 
@@ -804,10 +1216,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         document.getElementById('navLogoutBtn').addEventListener('click', performLogout);
       } else {
+        const isVerified = Boolean(state.user.Verified || state.user.verified || state.user.status === 'active');
         userNavContainer.innerHTML = `
           <div class="nav-user-pill">
             <div class="nav-user-avatar">${state.user.name.charAt(0)}</div>
             <span>${state.user.name.split(' ')[0]}</span>
+            ${isVerified ? '<span class="user-verified-badge" title="Verified Customer"><i class="fa-solid fa-circle-check"></i> Verified</span>' : ''}
           </div>
           <button class="btn-icon-only" id="navLogoutBtn" title="Logout">
             <i class="fa-solid fa-right-from-bracket"></i>
@@ -1683,7 +2097,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const pendingOrders = state.orders.filter(o => o.status === 'Pending').length;
     const confirmedBookings = state.bookings.filter(b => b.status === 'Confirmed').length;
-    const pendingUsers = state.registeredUserList.filter(u => u.role !== 'admin' && u.status === 'pending').length;
+    const pendingUsers = state.registeredUserList.filter(u => u.role !== 'admin' && u.status === 'pending');
 
     document.getElementById('kpiRevenue').textContent = `IDR ${totalRev.toLocaleString()}`;
     document.getElementById('kpiOrdersCount').textContent = state.orders.length;
@@ -1696,7 +2110,43 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('adminBookingsBadge').textContent = confirmedBookings;
     
     const adminUsersBadge = document.getElementById('adminUsersBadge');
-    if (adminUsersBadge) adminUsersBadge.textContent = pendingUsers;
+    if (adminUsersBadge) adminUsersBadge.textContent = pendingUsers.length;
+
+    // Overview Pending Users Alert Banner
+    const overviewAlert = document.getElementById('overviewPendingUsersAlert');
+    if (overviewAlert) {
+      if (pendingUsers.length > 0) {
+        overviewAlert.innerHTML = `
+          <div class="admin-alert-banner">
+            <div style="display:flex; align-items:center; gap:0.85rem;">
+              <div style="width:40px; height:40px; border-radius:50%; background:rgba(241,196,15,0.2); color:#f1c40f; display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0;">
+                <i class="fa-solid fa-user-clock"></i>
+              </div>
+              <div>
+                <div style="font-weight:700; color:#fff; font-size:0.95rem;">
+                  ⚡ Action Required: ${pendingUsers.length} Customer Registration${pendingUsers.length > 1 ? 's' : ''} Awaiting Admin Verification
+                </div>
+                <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.2rem;">
+                  New customers cannot sign in or place online orders until approved.
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-primary" id="btnOverviewReviewUsers" style="padding:0.45rem 1.1rem; font-size:0.85rem; white-space:nowrap;">
+              <i class="fa-solid fa-user-check"></i> Review Verifications &rarr;
+            </button>
+          </div>
+        `;
+        const reviewBtn = document.getElementById('btnOverviewReviewUsers');
+        if (reviewBtn) {
+          reviewBtn.addEventListener('click', () => {
+            const usersTabBtn = document.querySelector('[data-admin-tab="users"]');
+            if (usersTabBtn) usersTabBtn.click();
+          });
+        }
+      } else {
+        overviewAlert.innerHTML = '';
+      }
+    }
 
     const adminQaBadge = document.getElementById('adminQaBadge');
     if (adminQaBadge) {
@@ -1736,46 +2186,151 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- RENDER ADMIN TAB 5: USER VERIFICATIONS ---
+  let adminUserFilter = 'all';
+  let adminUserSearchQuery = '';
+
   function renderAdminUsers() {
     const adminUsersTableBody = document.getElementById('adminUsersTableBody');
     const usersTotalCount = document.getElementById('usersTotalCount');
 
     if (!adminUsersTableBody) return;
 
-    if (usersTotalCount) {
-      usersTotalCount.textContent = `${state.registeredUserList.length} Registered Accounts`;
+    // Filter pill & search listeners setup (once)
+    const adminUserFilterPills = document.getElementById('adminUserFilterPills');
+    if (adminUserFilterPills && !adminUserFilterPills.dataset.initialized) {
+      adminUserFilterPills.dataset.initialized = 'true';
+      adminUserFilterPills.querySelectorAll('.admin-filter-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+          adminUserFilterPills.querySelectorAll('.admin-filter-pill').forEach(p => p.classList.remove('active'));
+          pill.classList.add('active');
+          adminUserFilter = pill.getAttribute('data-filter') || 'all';
+          renderAdminUsers();
+        });
+      });
     }
 
+    const adminUsersSearch = document.getElementById('adminUsersSearch');
+    if (adminUsersSearch && !adminUsersSearch.dataset.initialized) {
+      adminUsersSearch.dataset.initialized = 'true';
+      adminUsersSearch.addEventListener('input', (e) => {
+        adminUserSearchQuery = e.target.value.trim();
+        renderAdminUsers();
+      });
+    }
+
+    const btnApproveAllPending = document.getElementById('btnApproveAllPending');
+    if (btnApproveAllPending && !btnApproveAllPending.dataset.initialized) {
+      btnApproveAllPending.dataset.initialized = 'true';
+      btnApproveAllPending.addEventListener('click', async () => {
+        const pendingUsers = state.registeredUserList.filter(u => u.role !== 'admin' && u.status === 'pending');
+        if (pendingUsers.length === 0) {
+          showToast('No pending registrations to approve.', 'info');
+          return;
+        }
+        if (confirm(`Approve all ${pendingUsers.length} pending user registrations at once?`)) {
+          showToast('Verifying all pending customer accounts...', 'info');
+          const nowIso = new Date().toISOString();
+          for (const u of pendingUsers) {
+            u.status = 'active';
+            u.Verified = true;
+            u.verified = true;
+            u.verifiedAt = nowIso;
+            try {
+              await setDoc(doc(db, "users", u.uid), {
+                status: 'active',
+                Verified: true,
+                verified: true,
+                verifiedAt: nowIso
+              }, { merge: true });
+            } catch (err) {
+              console.warn("Batch approve Firestore sync note:", err);
+            }
+          }
+          saveRegisteredUserList();
+          renderAdminUsers();
+          renderAdminOverview();
+          showToast(`🎉 All ${pendingUsers.length} pending user(s) verified successfully!`, 'success');
+        }
+      });
+    }
+
+    // Counts Calculation
     const pendingCount = state.registeredUserList.filter(u => u.role !== 'admin' && u.status === 'pending').length;
+    const activeCount = state.registeredUserList.filter(u => u.role !== 'admin' && u.status === 'active').length;
+    const rejectedCount = state.registeredUserList.filter(u => u.role !== 'admin' && u.status === 'rejected').length;
+
+    const countFilterAll = document.getElementById('countFilterAll');
+    const countFilterPending = document.getElementById('countFilterPending');
+    const countFilterActive = document.getElementById('countFilterActive');
+    const countFilterRejected = document.getElementById('countFilterRejected');
+
+    if (countFilterAll) countFilterAll.textContent = state.registeredUserList.length;
+    if (countFilterPending) countFilterPending.textContent = pendingCount;
+    if (countFilterActive) countFilterActive.textContent = activeCount;
+    if (countFilterRejected) countFilterRejected.textContent = rejectedCount;
+
+    if (usersTotalCount) {
+      usersTotalCount.textContent = `${state.registeredUserList.length} Total Registered`;
+    }
+
     const adminUsersBadge = document.getElementById('adminUsersBadge');
     if (adminUsersBadge) adminUsersBadge.textContent = pendingCount;
 
-    if (state.registeredUserList.length === 0) {
-      adminUsersTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:2rem; color:var(--text-muted);">No user registration records found.</td></tr>`;
+    // Filter list by selected filter tab and search query
+    let filteredList = state.registeredUserList;
+    if (adminUserFilter === 'pending') {
+      filteredList = filteredList.filter(u => u.role !== 'admin' && u.status === 'pending');
+    } else if (adminUserFilter === 'active') {
+      filteredList = filteredList.filter(u => u.role !== 'admin' && u.status === 'active');
+    } else if (adminUserFilter === 'rejected') {
+      filteredList = filteredList.filter(u => u.role !== 'admin' && u.status === 'rejected');
+    }
+
+    if (adminUserSearchQuery) {
+      const q = adminUserSearchQuery.toLowerCase();
+      filteredList = filteredList.filter(u => 
+        (u.name && u.name.toLowerCase().includes(q)) || 
+        (u.email && u.email.toLowerCase().includes(q)) ||
+        (u.uid && u.uid.toLowerCase().includes(q))
+      );
+    }
+
+    if (filteredList.length === 0) {
+      adminUsersTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:2.5rem 1rem; color:var(--text-muted);"><i class="fa-solid fa-users-slash" style="font-size:1.8rem; margin-bottom:0.6rem; display:block; opacity:0.5;"></i>No accounts found matching current filter (<strong>${adminUserFilter}</strong>).</td></tr>`;
       return;
     }
 
-    adminUsersTableBody.innerHTML = state.registeredUserList.map(u => `
+    adminUsersTableBody.innerHTML = filteredList.map(u => `
       <tr>
         <td><strong>${u.name}</strong></td>
         <td>${u.email}</td>
         <td><span style="text-transform:uppercase; font-size:0.75rem; font-weight:800; padding:0.15rem 0.5rem; border-radius:4px; background:${u.role === 'admin' ? 'rgba(232,80,29,0.2)' : 'rgba(255,255,255,0.08)'}; color:${u.role === 'admin' ? 'var(--primary-accent)' : '#fff'};">${u.role}</span></td>
         <td style="font-size:0.8rem; color:var(--text-muted);">${u.createdAt || 'N/A'}</td>
         <td>
-          ${u.role === 'admin' ? '<span class="badge-status badge-cooking">Admin</span>' :
-            (u.status === 'active' ? '<span class="badge-status badge-delivered"><i class="fa-solid fa-circle-check"></i> Verified</span>' :
-            '<span class="badge-status badge-pending"><i class="fa-solid fa-hourglass-half"></i> Pending Approval</span>')}
+          ${u.role === 'admin' ? '<span class="badge-status badge-cooking"><i class="fa-solid fa-shield-halved"></i> Master Admin</span>' :
+            (u.status === 'active' ? '<span class="status-pulse-badge verified"><i class="fa-solid fa-circle-check"></i> Verified Member</span>' :
+            (u.status === 'rejected' ? '<span class="status-pulse-badge rejected"><i class="fa-solid fa-ban"></i> Rejected</span>' :
+            '<span class="status-pulse-badge pending"><i class="fa-solid fa-hourglass-half"></i> Pending Approval</span>'))}
         </td>
         <td>
           ${u.role === 'admin' ? '<span style="font-size:0.75rem; color:var(--text-muted);">Protected Master</span>' : `
-            <div style="display:flex; gap:0.4rem;">
+            <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
               ${u.status !== 'active' ? `
-                <button class="btn btn-approve-user" data-id="${u.uid}" data-email="${u.email}" style="padding:0.3rem 0.7rem; font-size:0.75rem; background:#2ecc71; color:#fff; border-radius:var(--radius-full);">
-                  <i class="fa-solid fa-check"></i> Approve
+                <button class="btn btn-approve-user" data-id="${u.uid}" data-email="${u.email}" style="padding:0.35rem 0.75rem; font-size:0.75rem; background:#2ecc71; color:#fff; border-radius:var(--radius-full); font-weight:700;">
+                  <i class="fa-solid fa-check"></i> ${u.status === 'rejected' ? 'Re-Approve' : 'Approve & Verify'}
+                </button>
+              ` : `
+                <button class="btn btn-revoke-user" data-id="${u.uid}" data-email="${u.email}" style="padding:0.35rem 0.65rem; font-size:0.75rem; background:rgba(241,196,15,0.2); color:#f1c40f; border-radius:var(--radius-full);" title="Revoke verification and set to pending">
+                  <i class="fa-solid fa-rotate-left"></i> Unverify
+                </button>
+              `}
+              ${u.status === 'pending' ? `
+                <button class="btn btn-reject-user" data-id="${u.uid}" data-email="${u.email}" style="padding:0.35rem 0.65rem; font-size:0.75rem; background:rgba(231, 76, 60, 0.2); color:#e74c3c; border-radius:var(--radius-full);" title="Reject Registration">
+                  <i class="fa-solid fa-ban"></i> Reject
                 </button>
               ` : ''}
-              <button class="btn btn-reject-user" data-id="${u.uid}" data-email="${u.email}" style="padding:0.3rem 0.7rem; font-size:0.75rem; background:rgba(231, 76, 60, 0.2); color:#e74c3c; border-radius:var(--radius-full);" title="${u.status === 'pending' ? 'Reject & Delete Account' : 'Revoke & Delete Account'}">
-                <i class="fa-solid fa-trash"></i> ${u.status === 'pending' ? 'Reject' : 'Delete'}
+              <button class="btn btn-delete-user" data-id="${u.uid}" data-email="${u.email}" style="padding:0.35rem 0.65rem; font-size:0.75rem; background:rgba(231, 76, 60, 0.15); color:#e74c3c; border-radius:var(--radius-full);" title="Permanently Delete Account">
+                <i class="fa-solid fa-trash"></i>
               </button>
             </div>
           `}
@@ -1783,7 +2338,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </tr>
     `).join('');
 
-    // Approve user listener
+    // Approve / Re-Approve user listener
     adminUsersTableBody.querySelectorAll('.btn-approve-user').forEach(btn => {
       btn.addEventListener('click', async () => {
         const uid = btn.getAttribute('data-id');
@@ -1791,9 +2346,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetUser = state.registeredUserList.find(u => u.uid === uid || u.email === email);
 
         if (targetUser) {
+          const nowIso = new Date().toISOString();
           targetUser.status = 'active';
           targetUser.Verified = true;
           targetUser.verified = true;
+          targetUser.verifiedAt = nowIso;
           saveRegisteredUserList();
 
           // Sync status and Verified to Firestore
@@ -1801,7 +2358,8 @@ document.addEventListener('DOMContentLoaded', () => {
             await setDoc(doc(db, "users", uid), {
               status: 'active',
               Verified: true,
-              verified: true
+              verified: true,
+              verifiedAt: nowIso
             }, { merge: true });
           } catch (e) {
             console.warn("Firestore status approve update note:", e);
@@ -1814,26 +2372,85 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Reject / Delete user listener
+    // Revoke verification listener
+    adminUsersTableBody.querySelectorAll('.btn-revoke-user').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const uid = btn.getAttribute('data-id');
+        const email = btn.getAttribute('data-email');
+        const targetUser = state.registeredUserList.find(u => u.uid === uid || u.email === email);
+
+        if (targetUser) {
+          targetUser.status = 'pending';
+          targetUser.Verified = false;
+          targetUser.verified = false;
+          saveRegisteredUserList();
+
+          try {
+            await setDoc(doc(db, "users", uid), {
+              status: 'pending',
+              Verified: false,
+              verified: false
+            }, { merge: true });
+          } catch (e) {
+            console.warn("Firestore status revoke note:", e);
+          }
+
+          renderAdminUsers();
+          renderAdminOverview();
+          showToast(`User ${email} verification revoked to Pending review. ⏳`, 'info');
+        }
+      });
+    });
+
+    // Reject user listener
     adminUsersTableBody.querySelectorAll('.btn-reject-user').forEach(btn => {
       btn.addEventListener('click', async () => {
         const uid = btn.getAttribute('data-id');
         const email = btn.getAttribute('data-email');
+        const targetUser = state.registeredUserList.find(u => u.uid === uid || u.email === email);
 
-        if (confirm(`Are you sure you want to reject/delete registration for ${email}? This frees up storage and prevents spam.`)) {
-          state.registeredUserList = state.registeredUserList.filter(u => u.uid !== uid && u.email !== email);
+        if (targetUser && confirm(`Reject registration for ${email}? The user will be notified that registration was declined.`)) {
+          targetUser.status = 'rejected';
+          targetUser.Verified = false;
+          targetUser.verified = false;
           saveRegisteredUserList();
 
-          // Delete/reject status in Firestore
           try {
-            await setDoc(doc(db, "users", uid), { status: 'rejected' }, { merge: true });
+            await setDoc(doc(db, "users", uid), {
+              status: 'rejected',
+              Verified: false,
+              verified: false
+            }, { merge: true });
           } catch (e) {
             console.warn("Firestore user reject note:", e);
           }
 
           renderAdminUsers();
           renderAdminOverview();
-          showToast(`Account for ${email} deleted to prevent storage waste. 🗑️`, 'info');
+          showToast(`Registration for ${email} marked as Rejected. ❌`, 'info');
+        }
+      });
+    });
+
+    // Delete user listener
+    adminUsersTableBody.querySelectorAll('.btn-delete-user').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const uid = btn.getAttribute('data-id');
+        const email = btn.getAttribute('data-email');
+
+        if (confirm(`Are you sure you want to permanently delete account for ${email}? This action cannot be undone.`)) {
+          state.registeredUserList = state.registeredUserList.filter(u => u.uid !== uid && u.email !== email);
+          saveRegisteredUserList();
+
+          try {
+            await deleteDoc(doc(db, "users", uid));
+          } catch (e) {
+            console.warn("Firestore user delete note:", e);
+          }
+
+          renderAdminUsers();
+          renderAdminOverview();
+          showToast(`Account for ${email} permanently deleted. 🗑️`, 'info');
         }
       });
     });
@@ -2994,6 +3611,9 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
       },
+      openVerificationModal: (email = '') => {
+        openVerificationModal({ email });
+      },
       openRoutesModal: () => {
         renderRoutesModalList();
         if (routesModal) {
@@ -3009,6 +3629,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cartOverlay) cartOverlay.classList.remove('active');
         if (checkoutModal) checkoutModal.classList.remove('active');
         if (authModal) authModal.classList.remove('active');
+        if (verificationPendingModal) verificationPendingModal.classList.remove('active');
         if (routesModal) routesModal.classList.remove('active');
         if (productFormModal) productFormModal.classList.remove('active');
         const qaModal = document.getElementById('qaModal');
