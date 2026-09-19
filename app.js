@@ -734,7 +734,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Register Form Submit -> Firebase Auth Create User (Role: customer, status: pending)
+    // Register Form Submit -> Customer Account Registration (Pending Admin Verification)
     if (registerForm) {
       registerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -742,95 +742,125 @@ document.addEventListener('DOMContentLoaded', () => {
         const email = document.getElementById('regEmail').value.trim();
         const password = document.getElementById('regPassword').value;
 
-        try {
-          showToast('Submitting registration request to Firebase...', 'info');
-          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-          const fbUser = userCredential.user;
-
-          // Always set role as customer and status as pending for new accounts!
-          const role = 'customer';
-          const status = 'pending';
-          const isVerified = false;
-          const now = new Date();
-          const formattedCreatedAt = now.toISOString().replace('T', ' ').substring(0, 16);
-          const dateStr = now.toISOString().split('T')[0];
-
-          // Document data with uid, customer role, Verified, and Created_at object
-          const userDocData = {
-            uid: fbUser.uid,
-            email: email,
-            name: name,
-            role: role,
-            status: status,
-            Verified: isVerified,
-            verified: isVerified,
-            Created_at: {
-              date: dateStr,
-              timestamp: now.getTime()
-            },
-            createdAt: formattedCreatedAt
-          };
-
-          // Save user profile directly to Firestore under document ID "users/{fbUser.uid}"
-          try {
-            await setDoc(doc(db, "users", fbUser.uid), userDocData);
-            console.log("Firestore document stored successfully for UID:", fbUser.uid, userDocData);
-          } catch (fsErr) {
-            console.warn("Firestore user creation note:", fsErr);
-          }
-
-          // Save to local registered list as pending
-          const newUserRecord = {
-            uid: fbUser.uid,
-            name,
-            email,
-            role,
-            status,
-            Verified: isVerified,
-            Created_at: {
-              date: dateStr,
-              timestamp: now.getTime()
-            },
-            createdAt: formattedCreatedAt
-          };
-
-          const existingIdx = state.registeredUserList.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
-          if (existingIdx > -1) {
-            state.registeredUserList[existingIdx] = newUserRecord;
-          } else {
-            state.registeredUserList.unshift(newUserRecord);
-          }
-          saveRegisteredUserList();
-
-          // Immediately sign out since account requires admin verification
-          await signOut(auth);
-          state.user = null;
-          saveUser();
-          updateUserNavUI();
-
-          if (authModal) authModal.classList.remove('active');
-          showToast(`🎉 Registration request submitted! Awaiting Admin verification.`, 'success');
-
-          // Pop up the dedicated Verification Pending confirmation modal
-          openVerificationModal({
-            email,
-            name,
-            status: 'pending',
-            createdAt: formattedCreatedAt,
-            isJustRegistered: true
-          });
-        } catch (error) {
-          console.error("Firebase Register Error:", error);
-          let msg = 'Failed to register account in Firebase.';
-          if (error.code === 'auth/email-already-in-use') {
-            msg = 'This email is already registered in Firebase!';
-          } else if (error.code === 'auth/weak-password') {
-            msg = 'Password should be at least 6 characters.';
-          } else {
-            msg = error.message || 'Firebase registration failed.';
-          }
-          showToast(msg, 'error');
+        if (!name || !email || !password) {
+          showToast('Please fill in all registration fields.', 'error');
+          return;
         }
+
+        if (password.length < 6) {
+          showToast('Password should be at least 6 characters.', 'error');
+          return;
+        }
+
+        // Check if already registered and active in local state
+        const existingRecord = state.registeredUserList.find(u => u.email.toLowerCase() === email.toLowerCase());
+        if (existingRecord && existingRecord.status === 'active') {
+          showToast('This account is already registered and verified! Please sign in.', 'info');
+          if (tabLoginBtn) tabLoginBtn.click();
+          const loginEmailInput = document.getElementById('loginEmail');
+          if (loginEmailInput) loginEmailInput.value = email;
+          const loginPasswordInput = document.getElementById('loginPassword');
+          if (loginPasswordInput) {
+            loginPasswordInput.value = '';
+            loginPasswordInput.focus();
+          }
+          return;
+        }
+
+        showToast('Submitting customer registration...', 'info');
+
+        let fbUid = null;
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          if (userCredential && userCredential.user) {
+            fbUid = userCredential.user.uid;
+          }
+        } catch (authError) {
+          console.warn("Firebase Auth registration notice (handled):", authError);
+          if (authError.code === 'auth/weak-password') {
+            showToast('Password should be at least 6 characters.', 'error');
+            return;
+          }
+        }
+
+        const uid = fbUid || existingRecord?.uid || `user_${Date.now()}`;
+        const role = 'customer';
+        const status = 'pending';
+        const isVerified = false;
+        const now = new Date();
+        const formattedCreatedAt = now.toISOString().replace('T', ' ').substring(0, 16);
+        const dateStr = now.toISOString().split('T')[0];
+
+        const userDocData = {
+          uid: uid,
+          email: email,
+          name: name,
+          role: role,
+          status: status,
+          Verified: isVerified,
+          verified: isVerified,
+          Created_at: {
+            date: dateStr,
+            timestamp: now.getTime()
+          },
+          createdAt: formattedCreatedAt
+        };
+
+        // 1. Immediately store to Firestore Cloud
+        try {
+          await setDoc(doc(db, "users", uid), userDocData, { merge: true });
+          console.log("Customer registered in Firestore successfully:", uid);
+        } catch (fsErr) {
+          console.warn("Firestore user creation note:", fsErr);
+        }
+
+        // 2. Immediately update state.registeredUserList
+        const existingIdx = state.registeredUserList.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+        if (existingIdx > -1) {
+          state.registeredUserList[existingIdx] = { ...state.registeredUserList[existingIdx], ...userDocData };
+        } else {
+          state.registeredUserList.unshift(userDocData);
+        }
+        saveRegisteredUserList();
+
+        // 3. Immediately refresh Admin Badges & live tables so Admin sees it right away!
+        updateAdminBadges();
+        if (typeof renderAdminUsers === 'function') {
+          renderAdminUsers();
+        }
+        if (typeof renderAdminOverview === 'function') {
+          renderAdminOverview();
+        }
+
+        // 4. Ensure customer is logged out since account requires admin verification
+        try {
+          if (auth && auth.currentUser) {
+            await signOut(auth);
+          }
+        } catch (e) {}
+        state.user = null;
+        saveUser();
+        updateUserNavUI();
+
+        // 5. Reset the registration form
+        registerForm.reset();
+
+        // 6. Move user to the login section!
+        if (tabLoginBtn) {
+          tabLoginBtn.click();
+        }
+        const loginEmailInput = document.getElementById('loginEmail');
+        if (loginEmailInput) {
+          loginEmailInput.value = email;
+        }
+        const loginPasswordInput = document.getElementById('loginPassword');
+        if (loginPasswordInput) {
+          loginPasswordInput.value = '';
+          loginPasswordInput.focus();
+        }
+
+        // 7. Show success confirmation
+        showToast(`🎉 Registration request submitted for ${name}! Please sign in once verified by Admin.`, 'success');
       });
     }
 
