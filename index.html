@@ -809,36 +809,39 @@
         </div>
 
         <div class="form-group">
-          <label><i class="fa-solid fa-image"></i> Screenshot Proof & Annotations <span style="font-size:0.75rem; font-weight:normal; color:var(--text-muted);">(Optional)</span></label>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
+            <label style="margin:0;"><i class="fa-solid fa-images"></i> Screenshot Proofs & Annotations <span style="font-size:0.75rem; font-weight:normal; color:var(--text-muted);">(Optional - multiple images supported)</span></label>
+            <span id="qaAttachedCountBadge" style="display:none; font-size:0.75rem; padding:2px 8px; border-radius:12px; background:rgba(232,80,29,0.2); color:var(--primary-accent); font-weight:700;">0 Images</span>
+          </div>
           <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:0.5rem;">
-            Upload your screenshot or paste an image link (optional), then highlight the issue area using boxes or notes below.
+            Upload one or more screenshots or paste image URLs. Select any attached image below to highlight glitches.
           </p>
           <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
-            <input type="url" id="qaProofUrl" placeholder="https://images.unsplash.com/... or image link" style="flex:1; min-width:200px;">
+            <input type="url" id="qaProofUrl" placeholder="https://... image link" style="flex:1; min-width:180px;">
+            <button type="button" class="btn btn-outline" id="qaAddUrlBtn" style="padding:0.65rem 0.85rem; font-size:0.8rem; white-space:nowrap;">
+              <i class="fa-solid fa-plus"></i> Add Link
+            </button>
             <label class="btn btn-secondary" style="margin:0; padding:0.65rem 1rem; cursor:pointer; font-size:0.8rem; white-space:nowrap;">
-              <i class="fa-solid fa-upload"></i> Upload
-              <input type="file" id="qaProofFile" accept="image/*" style="display:none;">
+              <i class="fa-solid fa-upload"></i> Upload Files
+              <input type="file" id="qaProofFile" accept="image/*" multiple style="display:none;">
             </label>
             <button type="button" class="btn btn-outline" id="qaUseSampleImageBtn" style="padding:0.65rem 0.9rem; font-size:0.8rem; white-space:nowrap;">
-              <i class="fa-solid fa-wand-magic-sparkles"></i> Use Sample UI
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Sample UI
             </button>
-            <button type="button" class="btn btn-outline qa-btn-clear-image" id="qaClearImageBtn" style="display:none; padding:0.65rem 0.9rem; font-size:0.8rem; white-space:nowrap;">
-              <i class="fa-solid fa-trash-can"></i> Clear Image
+            <button type="button" class="btn btn-outline qa-btn-clear-image" id="qaClearAllImagesBtn" style="display:none; padding:0.65rem 0.9rem; font-size:0.8rem; white-space:nowrap;">
+              <i class="fa-solid fa-trash-can"></i> Clear All
             </button>
           </div>
 
-          <!-- Attached Screenshot Notification & Remove Card -->
-          <div class="qa-attached-card" id="qaAttachedCard" style="display:none; margin-top:0.75rem; padding:0.6rem 0.9rem; background:rgba(232,80,29,0.1); border:1px solid rgba(232,80,29,0.3); border-radius:8px; align-items:center; justify-content:space-between; gap:0.8rem;">
-            <div style="display:flex; align-items:center; gap:0.75rem; overflow:hidden;">
-              <img id="qaCardThumb" src="" alt="Thumbnail" style="width:48px; height:34px; object-fit:cover; border-radius:4px; border:1px solid var(--border-color); background:#000; flex-shrink:0;">
-              <div style="overflow:hidden;">
-                <div style="font-size:0.82rem; font-weight:700; color:#fff; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;" id="qaCardLabel">Screenshot Attached</div>
-                <div style="font-size:0.72rem; color:var(--text-muted);">Annotate glitch below or remove to submit text-only report</div>
-              </div>
+          <!-- Attached Multi-Image Gallery Strip -->
+          <div class="qa-images-gallery-strip" id="qaImagesGalleryStrip" style="display:none; margin-top:0.75rem;">
+            <div class="qa-gallery-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+              <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;"><i class="fa-solid fa-layer-group"></i> Attached Screenshots (Click to annotate active):</span>
+              <button type="button" id="qaRemoveAllGalleryBtn" style="background:none; border:none; color:#e74c3c; font-size:0.75rem; cursor:pointer; font-weight:600;"><i class="fa-solid fa-trash"></i> Remove All</button>
             </div>
-            <button type="button" class="btn btn-outline" id="qaRemoveCardBtn" style="color:#e74c3c; border-color:#e74c3c; background:rgba(231,76,60,0.15); padding:0.35rem 0.75rem; font-size:0.78rem; white-space:nowrap;">
-              <i class="fa-solid fa-trash-can"></i> Remove Image
-            </button>
+            <div class="qa-gallery-items-container" id="qaGalleryItemsContainer">
+              <!-- Dynamically populated thumbnail cards with individual delete buttons -->
+            </div>
           </div>
 
           <!-- In-Browser Annotation Studio -->
@@ -907,10 +910,17 @@
         <!-- Left: Image display -->
         <div class="qa-inspector-image-pane">
           <div class="qa-inspector-image-header">
-            <span class="qa-inspector-image-tag"><i class="fa-solid fa-camera"></i> Proof Screenshot</span>
+            <span class="qa-inspector-image-tag"><i class="fa-solid fa-camera"></i> Proof Screenshots</span>
+            <span id="qaLightboxCounter" style="display:none; font-size:0.75rem; color:var(--text-muted); font-weight:700;"></span>
           </div>
-          <div class="qa-inspector-image-scroll">
+          <div class="qa-inspector-image-scroll" style="position:relative;">
+            <button type="button" class="qa-lightbox-nav qa-lightbox-prev" id="qaLightboxPrevBtn" title="Previous Image" style="display:none;">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
             <img id="qaLightboxImg" src="" alt="Proof Screenshot">
+            <button type="button" class="qa-lightbox-nav qa-lightbox-next" id="qaLightboxNextBtn" title="Next Image" style="display:none;">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
             <div id="qaLightboxNoImg" class="qa-no-proof-lightbox-placeholder" style="display:none;">
               <i class="fa-regular fa-image" style="font-size:2.8rem; opacity:0.3; margin-bottom:0.75rem;"></i>
               <strong style="color:var(--text-main); font-size:0.95rem;">No Screenshot Attached</strong>
@@ -919,6 +929,8 @@
               </p>
             </div>
           </div>
+          <!-- Thumbnail strip for multi-image switching in lightbox -->
+          <div class="qa-lightbox-thumb-strip" id="qaLightboxThumbStrip" style="display:none;"></div>
         </div>
 
         <!-- Right: Problem Description & Metadata -->

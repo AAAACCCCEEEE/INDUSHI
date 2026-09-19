@@ -2701,15 +2701,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const qaModal = document.getElementById('qaModal');
     const qaReportForm = document.getElementById('qaReportForm');
 
-    // Canvas & Annotation studio elements
+    // Canvas & Multi-Image Gallery elements
     const qaProofUrl = document.getElementById('qaProofUrl');
+    const qaAddUrlBtn = document.getElementById('qaAddUrlBtn');
     const qaProofFile = document.getElementById('qaProofFile');
     const qaUseSampleImageBtn = document.getElementById('qaUseSampleImageBtn');
-    const qaClearImageBtn = document.getElementById('qaClearImageBtn');
+    const qaClearAllImagesBtn = document.getElementById('qaClearAllImagesBtn');
+    const qaRemoveAllGalleryBtn = document.getElementById('qaRemoveAllGalleryBtn');
+    const qaAttachedCountBadge = document.getElementById('qaAttachedCountBadge');
+    const qaImagesGalleryStrip = document.getElementById('qaImagesGalleryStrip');
+    const qaGalleryItemsContainer = document.getElementById('qaGalleryItemsContainer');
+
+    // Canvas & Annotation studio elements
     const qaRemoveImageStudioBtn = document.getElementById('qaRemoveImageStudioBtn');
-    const qaAttachedCard = document.getElementById('qaAttachedCard');
-    const qaRemoveCardBtn = document.getElementById('qaRemoveCardBtn');
-    const qaCardThumb = document.getElementById('qaCardThumb');
     const qaAnnotationStudio = document.getElementById('qaAnnotationStudio');
     const qaCanvas = document.getElementById('qaCanvas');
     const qaCanvasWrapper = document.getElementById('qaCanvasWrapper');
@@ -2724,6 +2728,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const qaProofLightboxModal = document.getElementById('qaProofLightboxModal');
     const closeQaLightboxBtn = document.getElementById('closeQaLightboxBtn');
     const qaInspectCloseBtn = document.getElementById('qaInspectCloseBtn');
+    const qaLightboxImg = document.getElementById('qaLightboxImg');
+    const qaLightboxNoImg = document.getElementById('qaLightboxNoImg');
+    const qaLightboxCounter = document.getElementById('qaLightboxCounter');
+    const qaLightboxPrevBtn = document.getElementById('qaLightboxPrevBtn');
+    const qaLightboxNextBtn = document.getElementById('qaLightboxNextBtn');
+    const qaLightboxThumbStrip = document.getElementById('qaLightboxThumbStrip');
 
     // Admin QA elements
     const adminQaTableBody = document.getElementById('adminQaTableBody');
@@ -2732,7 +2742,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminQaPriorityFilter = document.getElementById('adminQaPriorityFilter');
     const adminOpenQaModalBtn = document.getElementById('adminOpenQaModalBtn');
 
-    // Canvas State
+    // Multi-Image & Canvas State
+    let attachedImages = []; // Array of image string URLs / Data URLs
+    let activeImageIndex = -1;
     let ctx = qaCanvas ? qaCanvas.getContext('2d') : null;
     let baseImg = null;
     let annotations = [];
@@ -2774,10 +2786,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Draw stored annotations
       annotations.forEach(ann => {
         if (ann.type === 'box') {
-          // Highlight translucent fill
           ctx.fillStyle = hexToRgba(ann.color, 0.28);
           ctx.fillRect(ann.x, ann.y, ann.w, ann.h);
-          // Highlight sharp outline
           ctx.strokeStyle = ann.color;
           ctx.lineWidth = 3;
           ctx.setLineDash([4, 4]);
@@ -2822,16 +2832,26 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    // Save current canvas drawings back to active image in array
+    function syncCanvasToActiveImage() {
+      if (baseImg && qaCanvas && activeImageIndex >= 0 && activeImageIndex < attachedImages.length) {
+        try {
+          attachedImages[activeImageIndex] = qaCanvas.toDataURL('image/jpeg', 0.85);
+        } catch (e) {
+          console.warn("Could not serialize canvas (e.g. cross-origin url):", e);
+        }
+      }
+    }
+
     // Load Image into Canvas Studio
     function loadImageIntoCanvas(imageSrc) {
-      if (!qaCanvas || !ctx) return;
+      if (!qaCanvas || !ctx || !imageSrc) return;
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
         baseImg = img;
         annotations = [];
         
-        // Scale to fit canvas studio nicely (max width 600, max height 340)
         let w = img.width || 600;
         let h = img.height || 360;
         const maxW = 600;
@@ -2842,26 +2862,123 @@ document.addEventListener('DOMContentLoaded', () => {
         qaCanvas.height = Math.round(h * ratio);
 
         if (qaAnnotationStudio) qaAnnotationStudio.style.display = 'block';
-        if (qaClearImageBtn) qaClearImageBtn.style.display = 'inline-flex';
-        if (qaAttachedCard) {
-          qaAttachedCard.style.display = 'flex';
-          const thumb = document.getElementById('qaCardThumb');
-          if (thumb) thumb.src = imageSrc;
-        }
         redrawCanvas();
         if (qaCanvasHint) {
-          qaCanvasHint.innerHTML = `<i class="fa-solid fa-shapes"></i> Image ready! Drag on image to highlight glitch with <strong>${activeTool === 'box' ? 'Boxes' : 'Pen'}</strong>.`;
+          qaCanvasHint.innerHTML = `<i class="fa-solid fa-shapes"></i> Image #${activeImageIndex + 1} ready! Drag on image to highlight glitch with <strong>${activeTool === 'box' ? 'Boxes' : 'Pen'}</strong>.`;
         }
       };
       img.onerror = () => {
-        showToast("Could not load image. Please try another link or upload.", "error");
+        showToast("Could not load image. Please verify URL or file format.", "error");
       };
       img.src = imageSrc;
     }
 
+    // Update Gallery UI and Control buttons
+    function renderGalleryAndControls() {
+      if (!qaGalleryItemsContainer) return;
+      qaGalleryItemsContainer.innerHTML = '';
+
+      if (attachedImages.length === 0) {
+        if (qaImagesGalleryStrip) qaImagesGalleryStrip.style.display = 'none';
+        if (qaAttachedCountBadge) qaAttachedCountBadge.style.display = 'none';
+        if (qaClearAllImagesBtn) qaClearAllImagesBtn.style.display = 'none';
+        if (qaAnnotationStudio) qaAnnotationStudio.style.display = 'none';
+        baseImg = null;
+        activeImageIndex = -1;
+        if (ctx && qaCanvas) {
+          ctx.clearRect(0, 0, qaCanvas.width, qaCanvas.height);
+          qaCanvas.width = 0;
+          qaCanvas.height = 0;
+        }
+        return;
+      }
+
+      if (qaImagesGalleryStrip) qaImagesGalleryStrip.style.display = 'block';
+      if (qaAttachedCountBadge) {
+        qaAttachedCountBadge.style.display = 'inline-block';
+        qaAttachedCountBadge.textContent = `${attachedImages.length} Image${attachedImages.length === 1 ? '' : 's'}`;
+      }
+      if (qaClearAllImagesBtn) qaClearAllImagesBtn.style.display = 'inline-flex';
+
+      attachedImages.forEach((src, idx) => {
+        const card = document.createElement('div');
+        card.className = `qa-gallery-card ${idx === activeImageIndex ? 'active' : ''}`;
+        card.title = `Click to edit Image #${idx + 1}`;
+        card.innerHTML = `
+          <button type="button" class="qa-gallery-remove-btn" data-idx="${idx}" title="Remove this screenshot">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+          <img src="${src}" alt="Screenshot ${idx + 1}">
+          <span class="qa-gallery-card-label">${idx === activeImageIndex ? '✏️ ' : ''}Img ${idx + 1}</span>
+        `;
+
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('.qa-gallery-remove-btn')) return;
+          if (activeImageIndex === idx) return;
+          syncCanvasToActiveImage();
+          activeImageIndex = idx;
+          loadImageIntoCanvas(attachedImages[activeImageIndex]);
+          renderGalleryAndControls();
+        });
+
+        const removeBtn = card.querySelector('.qa-gallery-remove-btn');
+        if (removeBtn) {
+          removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeSingleImage(idx);
+          });
+        }
+
+        qaGalleryItemsContainer.appendChild(card);
+      });
+    }
+
+    function addImageToProof(src) {
+      if (!src) return;
+      syncCanvasToActiveImage();
+      attachedImages.push(src);
+      activeImageIndex = attachedImages.length - 1;
+      loadImageIntoCanvas(src);
+      renderGalleryAndControls();
+      showToast(`Screenshot #${attachedImages.length} attached!`, 'info');
+    }
+
+    function removeSingleImage(idx) {
+      if (idx < 0 || idx >= attachedImages.length) return;
+      attachedImages.splice(idx, 1);
+      if (attachedImages.length === 0) {
+        clearAllQaImages();
+      } else {
+        if (activeImageIndex >= attachedImages.length) {
+          activeImageIndex = attachedImages.length - 1;
+        } else if (activeImageIndex === idx) {
+          activeImageIndex = Math.max(0, activeImageIndex - 1);
+        }
+        loadImageIntoCanvas(attachedImages[activeImageIndex]);
+        renderGalleryAndControls();
+        showToast("Screenshot removed.", "info");
+      }
+    }
+
+    function clearAllQaImages() {
+      attachedImages = [];
+      activeImageIndex = -1;
+      baseImg = null;
+      annotations = [];
+      if (qaProofUrl) qaProofUrl.value = '';
+      if (qaProofFile) {
+        qaProofFile.value = '';
+        try {
+          qaProofFile.type = 'text';
+          qaProofFile.type = 'file';
+        } catch(e) {}
+      }
+      renderGalleryAndControls();
+      showToast("All screenshot proofs cleared. Report is now text-only.", "info");
+    }
+
     // Canvas Mouse & Touch Interaction Listeners
     if (qaCanvas) {
-      // Mouse Down
       qaCanvas.addEventListener('mousedown', (e) => {
         if (!baseImg) return;
         isDrawing = true;
@@ -2873,7 +2990,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
-      // Mouse Move
       qaCanvas.addEventListener('mousemove', (e) => {
         if (!isDrawing || !baseImg) return;
         const coords = getCanvasCoords(e);
@@ -2897,7 +3013,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
-      // Mouse Up
       const finishDrawing = (e) => {
         if (!isDrawing || !baseImg) return;
         isDrawing = false;
@@ -2931,7 +3046,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isDrawing) finishDrawing();
       });
 
-      // Touch Events for Mobile / Tablet
       qaCanvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
         if (!baseImg) return;
@@ -2974,7 +3088,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Annotation Toolbar Controls
+    // Toolbar Controls
     if (qaToolBox) {
       qaToolBox.addEventListener('click', () => {
         activeTool = 'box';
@@ -3015,77 +3129,71 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Clear / Remove QA Image function
-    function clearQaImage() {
-      baseImg = null;
-      annotations = [];
-      if (qaProofUrl) qaProofUrl.value = '';
-      if (qaProofFile) {
-        qaProofFile.value = '';
-        try {
-          qaProofFile.type = 'text';
-          qaProofFile.type = 'file';
-        } catch(e) {}
-      }
-      if (ctx && qaCanvas) {
-        ctx.clearRect(0, 0, qaCanvas.width, qaCanvas.height);
-        qaCanvas.width = 0;
-        qaCanvas.height = 0;
-      }
-      if (qaAnnotationStudio) {
-        qaAnnotationStudio.style.display = 'none';
-      }
-      if (qaAttachedCard) {
-        qaAttachedCard.style.display = 'none';
-      }
-      if (qaCardThumb) {
-        qaCardThumb.src = '';
-      }
-      if (qaClearImageBtn) {
-        qaClearImageBtn.style.display = 'none';
-      }
-      showToast("Screenshot removed! Bug report is now text-only.", "info");
+    // Remove buttons
+    if (qaClearAllImagesBtn) {
+      qaClearAllImagesBtn.addEventListener('click', clearAllQaImages);
     }
-
-    if (qaClearImageBtn) {
-      qaClearImageBtn.addEventListener('click', clearQaImage);
-    }
-    if (qaRemoveCardBtn) {
-      qaRemoveCardBtn.addEventListener('click', clearQaImage);
+    if (qaRemoveAllGalleryBtn) {
+      qaRemoveAllGalleryBtn.addEventListener('click', clearAllQaImages);
     }
     if (qaRemoveImageStudioBtn) {
-      qaRemoveImageStudioBtn.addEventListener('click', clearQaImage);
-    }
-
-    // Image Input Listeners
-    if (qaProofUrl) {
-      qaProofUrl.addEventListener('input', () => {
-        const url = qaProofUrl.value.trim();
-        if (url) {
-          if (qaClearImageBtn) qaClearImageBtn.style.display = 'inline-flex';
-        } else if (!baseImg) {
-          if (qaClearImageBtn) qaClearImageBtn.style.display = 'none';
+      qaRemoveImageStudioBtn.addEventListener('click', () => {
+        if (activeImageIndex >= 0) {
+          removeSingleImage(activeImageIndex);
+        } else {
+          clearAllQaImages();
         }
       });
-      qaProofUrl.addEventListener('change', () => {
+    }
+
+    // Add Image URL Button & Enter key
+    if (qaAddUrlBtn && qaProofUrl) {
+      qaAddUrlBtn.addEventListener('click', () => {
         const url = qaProofUrl.value.trim();
-        if (url) loadImageIntoCanvas(url);
+        if (!url) {
+          showToast("Please enter an image link URL.", "error");
+          return;
+        }
+        addImageToProof(url);
+        qaProofUrl.value = '';
       });
     }
 
+    if (qaProofUrl) {
+      qaProofUrl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (qaAddUrlBtn) qaAddUrlBtn.click();
+        }
+      });
+    }
+
+    // Multi-File Upload listener
     if (qaProofFile) {
       qaProofFile.addEventListener('change', (e) => {
-        const file = e.target.files && e.target.files[0];
-        if (file) {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+        syncCanvasToActiveImage();
+        let loadedCount = 0;
+        files.forEach((file) => {
           const reader = new FileReader();
           reader.onload = (event) => {
-            loadImageIntoCanvas(event.target.result);
+            attachedImages.push(event.target.result);
+            loadedCount++;
+            if (loadedCount === files.length) {
+              activeImageIndex = attachedImages.length - 1;
+              loadImageIntoCanvas(attachedImages[activeImageIndex]);
+              renderGalleryAndControls();
+              showToast(`${files.length} screenshot${files.length > 1 ? 's' : ''} uploaded!`, 'success');
+            }
           };
           reader.readAsDataURL(file);
-        }
+        });
+        qaProofFile.value = '';
       });
     }
 
+    // Sample UI Image
     if (qaUseSampleImageBtn) {
       qaUseSampleImageBtn.addEventListener('click', () => {
         const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="340" viewBox="0 0 600 340">
@@ -3106,14 +3214,14 @@ document.addEventListener('DOMContentLoaded', () => {
           <text x="400" y="200" fill="#feca57" font-family="sans-serif" font-size="11">Error: touchstart timeout</text>
         </svg>`;
         const sampleUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sampleSvg)}`;
-        loadImageIntoCanvas(sampleUrl);
+        addImageToProof(sampleUrl);
       });
     }
 
     // Modal Open / Close
     if (openQaModalBtn) {
       openQaModalBtn.addEventListener('click', () => {
-        clearQaImage();
+        clearAllQaImages();
         if (state.user && document.getElementById('qaUsername')) {
           document.getElementById('qaUsername').value = state.user.name || '';
         }
@@ -3123,7 +3231,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (adminOpenQaModalBtn) {
       adminOpenQaModalBtn.addEventListener('click', () => {
-        clearQaImage();
+        clearAllQaImages();
         if (state.user && document.getElementById('qaUsername')) {
           document.getElementById('qaUsername').value = state.user.name || 'Master Admin';
         }
@@ -3137,6 +3245,98 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // Lightbox Inspector Multi-Image Carousel
+    let currentInspectionImages = [];
+    let currentInspectionIndex = 0;
+
+    function renderLightboxImage() {
+      if (!qaProofLightboxModal) return;
+      const count = currentInspectionImages.length;
+      if (count === 0) {
+        if (qaLightboxImg) {
+          qaLightboxImg.src = '';
+          qaLightboxImg.style.display = 'none';
+        }
+        if (qaLightboxNoImg) qaLightboxNoImg.style.display = 'flex';
+        if (qaLightboxCounter) qaLightboxCounter.style.display = 'none';
+        if (qaLightboxPrevBtn) qaLightboxPrevBtn.style.display = 'none';
+        if (qaLightboxNextBtn) qaLightboxNextBtn.style.display = 'none';
+        if (qaLightboxThumbStrip) qaLightboxThumbStrip.style.display = 'none';
+        return;
+      }
+
+      if (qaLightboxNoImg) qaLightboxNoImg.style.display = 'none';
+      if (qaLightboxImg) {
+        qaLightboxImg.src = currentInspectionImages[currentInspectionIndex];
+        qaLightboxImg.style.display = 'block';
+      }
+
+      if (count > 1) {
+        if (qaLightboxCounter) {
+          qaLightboxCounter.style.display = 'inline-block';
+          qaLightboxCounter.textContent = `${currentInspectionIndex + 1} / ${count}`;
+        }
+        if (qaLightboxPrevBtn) qaLightboxPrevBtn.style.display = 'flex';
+        if (qaLightboxNextBtn) qaLightboxNextBtn.style.display = 'flex';
+        if (qaLightboxThumbStrip) {
+          qaLightboxThumbStrip.style.display = 'flex';
+          qaLightboxThumbStrip.innerHTML = currentInspectionImages.map((src, i) => `
+            <img class="qa-lightbox-thumb-item ${i === currentInspectionIndex ? 'active' : ''}" 
+                 src="${src}" 
+                 alt="Thumb ${i + 1}" 
+                 data-idx="${i}"
+                 title="View image ${i + 1}">
+          `).join('');
+
+          qaLightboxThumbStrip.querySelectorAll('.qa-lightbox-thumb-item').forEach(thumb => {
+            thumb.addEventListener('click', () => {
+              currentInspectionIndex = parseInt(thumb.getAttribute('data-idx')) || 0;
+              renderLightboxImage();
+            });
+          });
+        }
+      } else {
+        if (qaLightboxCounter) qaLightboxCounter.style.display = 'none';
+        if (qaLightboxPrevBtn) qaLightboxPrevBtn.style.display = 'none';
+        if (qaLightboxNextBtn) qaLightboxNextBtn.style.display = 'none';
+        if (qaLightboxThumbStrip) qaLightboxThumbStrip.style.display = 'none';
+      }
+    }
+
+    if (qaLightboxPrevBtn) {
+      qaLightboxPrevBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (currentInspectionImages.length > 1) {
+          currentInspectionIndex = (currentInspectionIndex - 1 + currentInspectionImages.length) % currentInspectionImages.length;
+          renderLightboxImage();
+        }
+      });
+    }
+
+    if (qaLightboxNextBtn) {
+      qaLightboxNextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (currentInspectionImages.length > 1) {
+          currentInspectionIndex = (currentInspectionIndex + 1) % currentInspectionImages.length;
+          renderLightboxImage();
+        }
+      });
+    }
+
+    // Keyboard Arrow Navigation for Lightbox
+    document.addEventListener('keydown', (e) => {
+      if (!qaProofLightboxModal || !qaProofLightboxModal.classList.contains('active')) return;
+      if (currentInspectionImages.length > 1) {
+        if (e.key === 'ArrowLeft') {
+          currentInspectionIndex = (currentInspectionIndex - 1 + currentInspectionImages.length) % currentInspectionImages.length;
+          renderLightboxImage();
+        } else if (e.key === 'ArrowRight') {
+          currentInspectionIndex = (currentInspectionIndex + 1) % currentInspectionImages.length;
+          renderLightboxImage();
+        }
+      }
+    });
+
     // Lightbox Inspector Close
     if (closeQaLightboxBtn) {
       closeQaLightboxBtn.addEventListener('click', () => {
@@ -3149,13 +3349,20 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Open Inspection Modal (Full screenshot + problem description)
+    // Open Inspection Modal (Multi-screenshot carousel + problem description)
     window.openQaInspectionModal = function(reportId) {
       const report = state.qaReports.find(r => r.id === reportId);
       if (!report) return;
 
-      const img = document.getElementById('qaLightboxImg');
-      const noImg = document.getElementById('qaLightboxNoImg');
+      if (Array.isArray(report.proofs) && report.proofs.length > 0) {
+        currentInspectionImages = report.proofs.filter(p => p && p.trim());
+      } else if (report.proof && report.proof.trim()) {
+        currentInspectionImages = [report.proof.trim()];
+      } else {
+        currentInspectionImages = [];
+      }
+      currentInspectionIndex = 0;
+
       const title = document.getElementById('qaLightboxTitle');
       const idEl = document.getElementById('qaInspectId');
       const priEl = document.getElementById('qaInspectPriority');
@@ -3165,19 +3372,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const fixEl = document.getElementById('qaInspectFixAttempts');
       const descEl = document.getElementById('qaInspectDescription');
 
-      if (report.proof && report.proof.trim()) {
-        if (img) {
-          img.src = report.proof;
-          img.style.display = 'block';
-        }
-        if (noImg) noImg.style.display = 'none';
-      } else {
-        if (img) {
-          img.src = '';
-          img.style.display = 'none';
-        }
-        if (noImg) noImg.style.display = 'flex';
-      }
+      renderLightboxImage();
+
       if (title) title.textContent = report.topic || 'Issue Details';
       if (idEl) idEl.textContent = report.id;
       if (priEl) priEl.innerHTML = `<span class="badge-priority badge-priority-${(report.priority || 'medium').toLowerCase()}">${report.priority}</span>`;
@@ -3195,7 +3391,16 @@ document.addEventListener('DOMContentLoaded', () => {
       qaReportForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        // 1. Generate next chronological ID: QA-001, QA-002, QA-003...
+        // 1. Sync active canvas markings
+        syncCanvasToActiveImage();
+
+        // Also check if any URL was left unadded in input field
+        const pendingUrl = qaProofUrl ? qaProofUrl.value.trim() : '';
+        if (pendingUrl) {
+          attachedImages.push(pendingUrl);
+        }
+
+        // 2. Generate next chronological ID: QA-001, QA-002, QA-003...
         let maxNum = 0;
         state.qaReports.forEach(r => {
           const num = parseInt((r.id || '').replace(/\D/g, '')) || 0;
@@ -3203,22 +3408,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const nextId = `QA-${String(maxNum + 1).padStart(3, '0')}`;
 
-        // 2. Export proof image (either annotated canvas or provided URL, optional)
-        let proofData = '';
-        if (baseImg && qaCanvas) {
-          proofData = qaCanvas.toDataURL('image/jpeg', 0.82);
-        } else if (qaProofUrl && qaProofUrl.value.trim()) {
-          proofData = qaProofUrl.value.trim();
-        } else {
-          proofData = ''; // Optional - no screenshot attached
-        }
+        const finalProofs = [...attachedImages];
+        const primaryProof = finalProofs.length > 0 ? finalProofs[0] : '';
 
         const newReport = {
           id: nextId,
           topic: document.getElementById('qaTopic').value.trim(),
           priority: document.getElementById('qaPriority').value,
           username: document.getElementById('qaUsername').value.trim() || (state.user ? state.user.name : 'Anonymous'),
-          proof: proofData,
+          proof: primaryProof,
+          proofs: finalProofs,
           status: 'New',
           fixAttempts: 0,
           description: document.getElementById('qaDescription').value.trim(),
@@ -3243,9 +3442,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         qaModal.classList.remove('active');
         qaReportForm.reset();
-        clearQaImage();
+        clearAllQaImages();
 
-        showToast(`Bug report ${nextId} submitted successfully! 🐞`, 'success');
+        showToast(`Bug report ${nextId} submitted with ${finalProofs.length} proof image${finalProofs.length === 1 ? '' : 's'}! 🐞`, 'success');
 
         const qaSection = document.getElementById('qa');
         if (qaSection) {
@@ -3283,52 +3482,65 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Required column order: ID (chronological), Topic, Priority, Username, proof (screenshot), Status, Fix Attempts
-    tableBody.innerHTML = state.qaReports.map(report => `
-      <tr>
-        <td><span class="qa-id-pill">${report.id}</span></td>
-        <td>
-          <strong style="color:#fff; font-size:0.92rem;">${report.topic}</strong>
-          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">Reported on ${report.createdAt || 'Recent'}</div>
-        </td>
-        <td>
-          <span class="badge-priority badge-priority-${(report.priority || 'medium').toLowerCase()}">
-            ${report.priority}
-          </span>
-        </td>
-        <td>
-          <span style="font-weight:600; color:var(--text-main);">
-            <i class="fa-solid fa-user" style="color:var(--text-muted); margin-right:4px; font-size:0.8rem;"></i>
-            ${report.username}
-          </span>
-        </td>
-        <td>
-          ${report.proof && report.proof.trim() ? `
-            <div class="qa-proof-cell" data-inspect-id="${report.id}" title="Click to view screenshot & details">
-              <img class="qa-proof-thumb" src="${report.proof}" alt="Proof Thumbnail">
-              <span class="qa-proof-zoom-icon"><i class="fa-solid fa-magnifying-glass-plus"></i></span>
-            </div>
-          ` : `
-            <div class="qa-proof-cell" data-inspect-id="${report.id}" title="No screenshot attached. Click to read details.">
-              <div class="qa-no-proof-thumb">
-                <i class="fa-regular fa-image" style="opacity:0.4; font-size:1.05rem;"></i>
-                <span style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">No proof</span>
+    tableBody.innerHTML = state.qaReports.map(report => {
+      const proofsList = (Array.isArray(report.proofs) && report.proofs.length > 0)
+        ? report.proofs.filter(p => p && p.trim())
+        : (report.proof && report.proof.trim() ? [report.proof.trim()] : []);
+      const hasProof = proofsList.length > 0;
+      const firstProof = hasProof ? proofsList[0] : '';
+      const proofCount = proofsList.length;
+
+      return `
+        <tr>
+          <td><span class="qa-id-pill">${report.id}</span></td>
+          <td>
+            <strong style="color:#fff; font-size:0.92rem;">${report.topic}</strong>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">Reported on ${report.createdAt || 'Recent'}</div>
+          </td>
+          <td>
+            <span class="badge-priority badge-priority-${(report.priority || 'medium').toLowerCase()}">
+              ${report.priority}
+            </span>
+          </td>
+          <td>
+            <span style="font-weight:600; color:var(--text-main);">
+              <i class="fa-solid fa-user" style="color:var(--text-muted); margin-right:4px; font-size:0.8rem;"></i>
+              ${report.username}
+            </span>
+          </td>
+          <td>
+            ${hasProof ? `
+              <div class="qa-proof-cell" data-inspect-id="${report.id}" title="Click to view ${proofCount} screenshot${proofCount > 1 ? 's' : ''} & details">
+                <img class="qa-proof-thumb" src="${firstProof}" alt="Proof Thumbnail">
+                ${proofCount > 1 ? `
+                  <span class="qa-multi-img-badge"><i class="fa-solid fa-images"></i> ${proofCount}</span>
+                ` : `
+                  <span class="qa-proof-zoom-icon"><i class="fa-solid fa-magnifying-glass-plus"></i></span>
+                `}
               </div>
-            </div>
-          `}
-        </td>
-        <td>
-          <span class="badge-status badge-status-${(report.status || 'new').toLowerCase().replace(/\s+/g, '-')}">
-            ${report.status}
-          </span>
-        </td>
-        <td>
-          <span class="qa-attempts-badge" title="Fix iterations applied">
-            <i class="fa-solid fa-wrench" style="color:var(--primary-accent);"></i>
-            <strong>${report.fixAttempts || 0}</strong> ${(report.fixAttempts === 1) ? 'attempt' : 'attempts'}
-          </span>
-        </td>
-      </tr>
-    `).join('');
+            ` : `
+              <div class="qa-proof-cell" data-inspect-id="${report.id}" title="No screenshot attached. Click to read details.">
+                <div class="qa-no-proof-thumb">
+                  <i class="fa-regular fa-image" style="opacity:0.4; font-size:1.05rem;"></i>
+                  <span style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">No proof</span>
+                </div>
+              </div>
+            `}
+          </td>
+          <td>
+            <span class="badge-status badge-status-${(report.status || 'new').toLowerCase().replace(/\s+/g, '-')}">
+              ${report.status}
+            </span>
+          </td>
+          <td>
+            <span class="qa-attempts-badge" title="Fix iterations applied">
+              <i class="fa-solid fa-wrench" style="color:var(--primary-accent);"></i>
+              <strong>${report.fixAttempts || 0}</strong> ${(report.fixAttempts === 1) ? 'attempt' : 'attempts'}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join('');
 
     // Clicking proof opens the inspector modal
     tableBody.querySelectorAll('.qa-proof-cell').forEach(cell => {
@@ -3392,64 +3604,77 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Required column order: ID (chronological), Topic, Priority, Username, proof (screenshot), Status, Fix Attempts, Actions
-    tableBody.innerHTML = filtered.map(report => `
-      <tr>
-        <td><span class="qa-id-pill">${report.id}</span></td>
-        <td>
-          <strong style="color:#fff; font-size:0.9rem;">${report.topic}</strong>
-          <div style="font-size:0.75rem; color:var(--text-muted);">${report.createdAt || 'Recent'}</div>
-        </td>
-        <td>
-          <span class="badge-priority badge-priority-${(report.priority || 'medium').toLowerCase()}">
-            ${report.priority}
-          </span>
-        </td>
-        <td>
-          <span style="font-weight:600; color:var(--text-main);">
-            <i class="fa-solid fa-user" style="color:var(--text-muted); margin-right:4px;"></i>${report.username}
-          </span>
-        </td>
-        <td>
-          ${report.proof && report.proof.trim() ? `
-            <div class="qa-proof-cell" data-inspect-id="${report.id}" title="Click to inspect problem & screenshot">
-              <img class="qa-proof-thumb" src="${report.proof}" alt="Proof Thumbnail">
-              <span class="qa-proof-zoom-icon"><i class="fa-solid fa-magnifying-glass-plus"></i></span>
-            </div>
-          ` : `
-            <div class="qa-proof-cell" data-inspect-id="${report.id}" title="No screenshot attached. Click to inspect details.">
-              <div class="qa-no-proof-thumb">
-                <i class="fa-regular fa-image" style="opacity:0.4; font-size:1.05rem;"></i>
-                <span style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">No proof</span>
+    tableBody.innerHTML = filtered.map(report => {
+      const proofsList = (Array.isArray(report.proofs) && report.proofs.length > 0)
+        ? report.proofs.filter(p => p && p.trim())
+        : (report.proof && report.proof.trim() ? [report.proof.trim()] : []);
+      const hasProof = proofsList.length > 0;
+      const firstProof = hasProof ? proofsList[0] : '';
+      const proofCount = proofsList.length;
+
+      return `
+        <tr>
+          <td><span class="qa-id-pill">${report.id}</span></td>
+          <td>
+            <strong style="color:#fff; font-size:0.9rem;">${report.topic}</strong>
+            <div style="font-size:0.75rem; color:var(--text-muted);">${report.createdAt || 'Recent'}</div>
+          </td>
+          <td>
+            <span class="badge-priority badge-priority-${(report.priority || 'medium').toLowerCase()}">
+              ${report.priority}
+            </span>
+          </td>
+          <td>
+            <span style="font-weight:600; color:var(--text-main);">
+              <i class="fa-solid fa-user" style="color:var(--text-muted); margin-right:4px;"></i>${report.username}
+            </span>
+          </td>
+          <td>
+            ${hasProof ? `
+              <div class="qa-proof-cell" data-inspect-id="${report.id}" title="Click to inspect ${proofCount} screenshot${proofCount > 1 ? 's' : ''} & problem details">
+                <img class="qa-proof-thumb" src="${firstProof}" alt="Proof Thumbnail">
+                ${proofCount > 1 ? `
+                  <span class="qa-multi-img-badge"><i class="fa-solid fa-images"></i> ${proofCount}</span>
+                ` : `
+                  <span class="qa-proof-zoom-icon"><i class="fa-solid fa-magnifying-glass-plus"></i></span>
+                `}
               </div>
+            ` : `
+              <div class="qa-proof-cell" data-inspect-id="${report.id}" title="No screenshot attached. Click to inspect details.">
+                <div class="qa-no-proof-thumb">
+                  <i class="fa-regular fa-image" style="opacity:0.4; font-size:1.05rem;"></i>
+                  <span style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">No proof</span>
+                </div>
+              </div>
+            `}
+          </td>
+          <td>
+            <select class="admin-select qa-admin-status-select" data-id="${report.id}" style="padding:0.35rem 0.6rem; font-size:0.8rem;">
+              <option value="New" ${report.status === 'New' ? 'selected' : ''}>New</option>
+              <option value="In Progress" ${report.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+              <option value="Solved" ${report.status === 'Solved' ? 'selected' : ''}>Solved</option>
+            </select>
+          </td>
+          <td>
+            <div class="qa-attempt-control">
+              <button class="qa-attempt-btn qa-attempt-dec" data-id="${report.id}" title="Decrease Fix Attempts">-</button>
+              <span class="qa-attempt-num">${report.fixAttempts || 0}</span>
+              <button class="qa-attempt-btn qa-attempt-inc" data-id="${report.id}" title="Increase Fix Attempts">+</button>
             </div>
-          `}
-        </td>
-        <td>
-          <select class="admin-select qa-admin-status-select" data-id="${report.id}" style="padding:0.35rem 0.6rem; font-size:0.8rem;">
-            <option value="New" ${report.status === 'New' ? 'selected' : ''}>New</option>
-            <option value="In Progress" ${report.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
-            <option value="Solved" ${report.status === 'Solved' ? 'selected' : ''}>Solved</option>
-          </select>
-        </td>
-        <td>
-          <div class="qa-attempt-control">
-            <button class="qa-attempt-btn qa-attempt-dec" data-id="${report.id}" title="Decrease Fix Attempts">-</button>
-            <span class="qa-attempt-num">${report.fixAttempts || 0}</span>
-            <button class="qa-attempt-btn qa-attempt-inc" data-id="${report.id}" title="Increase Fix Attempts">+</button>
-          </div>
-        </td>
-        <td style="text-align:right;">
-          <div style="display:inline-flex; gap:0.4rem;">
-            <button class="btn btn-outline qa-btn-inspect-row" data-id="${report.id}" title="Inspect Details" style="padding:0.35rem 0.65rem; font-size:0.8rem;">
-              <i class="fa-solid fa-eye"></i>
-            </button>
-            <button class="btn btn-del-booking qa-btn-delete-row" data-id="${report.id}" title="Delete Bug Report" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:rgba(231, 76, 60, 0.2); color:#e74c3c;">
-              <i class="fa-solid fa-trash"></i>
-            </button>
-          </div>
-        </td>
-      </tr>
-    `).join('');
+          </td>
+          <td style="text-align:right;">
+            <div style="display:inline-flex; gap:0.4rem;">
+              <button class="btn btn-outline qa-btn-inspect-row" data-id="${report.id}" title="Inspect Details" style="padding:0.35rem 0.65rem; font-size:0.8rem;">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+              <button class="btn btn-del-booking qa-btn-delete-row" data-id="${report.id}" title="Delete Bug Report" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:rgba(231, 76, 60, 0.2); color:#e74c3c;">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
 
     // Event: Click proof thumbnail to open inspection modal
     tableBody.querySelectorAll('.qa-proof-cell').forEach(cell => {

@@ -2470,6 +2470,179 @@ img {
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
+/* QA Multi-Image Badge in Tables */
+.qa-multi-img-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: rgba(232, 80, 29, 0.92);
+  color: #fff;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 1px 4px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+}
+
+/* Attached Image Gallery Strip in Form */
+.qa-images-gallery-strip {
+  background: #141414;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.65rem 0.8rem;
+}
+
+.qa-gallery-items-container {
+  display: flex;
+  gap: 0.65rem;
+  overflow-x: auto;
+  padding: 6px 2px 4px 2px;
+  scrollbar-width: thin;
+}
+
+.qa-gallery-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: #0c0c0c;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 82px;
+  max-width: 90px;
+  flex-shrink: 0;
+}
+
+.qa-gallery-card:hover {
+  border-color: rgba(232, 80, 29, 0.6);
+  transform: translateY(-2px);
+}
+
+.qa-gallery-card.active {
+  border-color: var(--primary-accent);
+  box-shadow: 0 0 10px rgba(232, 80, 29, 0.4);
+  background: rgba(232, 80, 29, 0.1);
+}
+
+.qa-gallery-card img {
+  width: 74px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+}
+
+.qa-gallery-card-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.qa-gallery-card.active .qa-gallery-card-label {
+  color: var(--primary-accent);
+}
+
+.qa-gallery-remove-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #e74c3c;
+  color: #fff;
+  border: 1px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  padding: 0;
+  z-index: 2;
+}
+
+.qa-gallery-remove-btn:hover {
+  transform: scale(1.2);
+}
+
+/* Lightbox Carousel Navigation */
+.qa-lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.2s ease;
+}
+
+.qa-lightbox-nav:hover {
+  background: var(--primary-accent);
+  border-color: var(--primary-accent);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.qa-lightbox-prev {
+  left: 10px;
+}
+
+.qa-lightbox-next {
+  right: 10px;
+}
+
+.qa-lightbox-thumb-strip {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  background: #111;
+  border-top: 1px solid var(--border-color);
+  overflow-x: auto;
+  justify-content: center;
+  align-items: center;
+}
+
+.qa-lightbox-thumb-item {
+  width: 52px;
+  height: 38px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 2px solid transparent;
+  opacity: 0.5;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #000;
+  flex-shrink: 0;
+}
+
+.qa-lightbox-thumb-item:hover {
+  opacity: 0.85;
+  transform: scale(1.05);
+}
+
+.qa-lightbox-thumb-item.active {
+  border-color: var(--primary-accent);
+  opacity: 1;
+  box-shadow: 0 0 8px rgba(232, 80, 29, 0.45);
+}
+
 /* Fix Attempts Counter Badge */
 .qa-attempts-badge {
   display: inline-flex;
