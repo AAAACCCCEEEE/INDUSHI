@@ -145,6 +145,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // --- LOCAL DATE & TIME FORMATTERS (Local Timezone instead of UTC) ---
+  function formatLocalDateTime(dateInput = new Date()) {
+    const d = (dateInput instanceof Date) ? dateInput : new Date(dateInput);
+    if (isNaN(d.getTime())) return typeof dateInput === 'string' ? dateInput : '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
+  }
+
+  function getLocalDateString(dateInput = new Date()) {
+    const d = (dateInput instanceof Date) ? dateInput : new Date(dateInput);
+    if (isNaN(d.getTime())) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   // --- REAL-TIME BADGE & STATUS HELPER ---
   function updateAdminBadges() {
     const pendingOrders = state.orders ? state.orders.filter(o => o.status === 'Pending').length : 0;
@@ -648,7 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
             status: 'active',
             Verified: true,
             verified: true,
-            createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+            createdAt: formatLocalDateTime(new Date())
           });
         }
         saveRegisteredUserList();
@@ -924,8 +945,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const status = 'pending';
         const isVerified = false;
         const now = new Date();
-        const formattedCreatedAt = now.toISOString().replace('T', ' ').substring(0, 16);
-        const dateStr = now.toISOString().split('T')[0];
+        const formattedCreatedAt = formatLocalDateTime(now);
+        const dateStr = getLocalDateString(now);
 
         const userDocData = {
           uid: uid,
@@ -1839,7 +1860,7 @@ document.addEventListener('DOMContentLoaded', () => {
           total: cartTotal,
           paymentMethod: payMethod,
           status: 'Pending',
-          createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+          createdAt: formatLocalDateTime(new Date())
         };
 
         state.orders.unshift(newOrder);
@@ -1895,7 +1916,7 @@ document.addEventListener('DOMContentLoaded', () => {
           time,
           pax,
           status: 'Confirmed',
-          createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+          createdAt: formatLocalDateTime(new Date())
         };
 
         state.bookings.unshift(newBooking);
@@ -2413,7 +2434,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (confirm(`Approve all ${pendingUsers.length} pending user registrations at once?`)) {
           showToast('Verifying all pending customer accounts...', 'info');
-          const nowIso = new Date().toISOString();
+          const nowIso = formatLocalDateTime(new Date());
           for (const u of pendingUsers) {
             u.status = 'active';
             u.Verified = true;
@@ -2529,7 +2550,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetUser = state.registeredUserList.find(u => u.uid === uid || u.email === email);
 
         if (targetUser) {
-          const nowIso = new Date().toISOString();
+          const nowIso = formatLocalDateTime(new Date());
           targetUser.status = 'active';
           targetUser.Verified = true;
           targetUser.verified = true;
@@ -3595,7 +3616,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (priEl) priEl.innerHTML = `<span class="badge-priority badge-priority-${(report.priority || 'medium').toLowerCase()}">${report.priority}</span>`;
       if (statEl) statEl.innerHTML = `<span class="badge-status badge-status-${(report.status || 'new').toLowerCase().replace(/\s+/g, '-')}">${report.status}</span>`;
       if (repEl) repEl.innerHTML = `<i class="fa-solid fa-user"></i> ${report.username || 'Anonymous'}`;
-      if (dateEl) dateEl.innerHTML = `<i class="fa-regular fa-clock"></i> ${report.createdAt || 'Recent'}`;
+      if (dateEl) dateEl.innerHTML = `<i class="fa-regular fa-clock"></i> ${formatLocalDateTime(report.createdAt) || report.createdAt || 'Recent'}`;
       if (fixEl) fixEl.innerHTML = `<i class="fa-solid fa-wrench"></i> <strong>${report.fixAttempts || 0}</strong> ${report.fixAttempts === 1 ? 'attempt' : 'attempts'}`;
       if (descEl) descEl.textContent = report.description || 'No steps or description provided.';
 
@@ -3637,7 +3658,7 @@ document.addEventListener('DOMContentLoaded', () => {
           status: 'New',
           fixAttempts: 0,
           description: document.getElementById('qaDescription').value.trim(),
-          createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+          createdAt: formatLocalDateTime(new Date())
         };
 
         state.qaReports.push(newReport);
@@ -3711,7 +3732,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td><span class="qa-id-pill">${report.id}</span></td>
           <td>
             <strong style="color:#fff; font-size:0.92rem;">${report.topic}</strong>
-            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">Reported on ${report.createdAt || 'Recent'}</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">Reported on ${formatLocalDateTime(report.createdAt) || report.createdAt || 'Recent'}</div>
           </td>
           <td>
             <span class="badge-priority badge-priority-${(report.priority || 'medium').toLowerCase()}">
@@ -3832,7 +3853,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td><span class="qa-id-pill">${report.id}</span></td>
           <td>
             <strong style="color:#fff; font-size:0.9rem;">${report.topic}</strong>
-            <div style="font-size:0.75rem; color:var(--text-muted);">${report.createdAt || 'Recent'}</div>
+            <div style="font-size:0.75rem; color:var(--text-muted);">${formatLocalDateTime(report.createdAt) || report.createdAt || 'Recent'}</div>
           </td>
           <td>
             <span class="badge-priority badge-priority-${(report.priority || 'medium').toLowerCase()}">
