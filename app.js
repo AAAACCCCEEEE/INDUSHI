@@ -21,6 +21,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const INITIAL_PRODUCTS = INDUSHI_DATA.products;
 
+  // --- ONE-TIME PURGE OF LEGACY DUMMY / SEED DATA FROM LOCALSTORAGE ---
+  (() => {
+    const CLEANUP_KEY = 'indushi_cleaned_actual_data_v2';
+    if (!localStorage.getItem(CLEANUP_KEY)) {
+      try {
+        // 1. Clean registered user accounts: Keep only Admin and real user registrations
+        let storedUsers = JSON.parse(localStorage.getItem('indushi_registered_user_list') || '[]');
+        storedUsers = storedUsers.filter(u => u.uid !== 'seed-user-01' && u.email !== 'user@indushi.id');
+        if (!storedUsers.some(u => u.email && u.email.toLowerCase() === 'admin@indushi.id')) {
+          storedUsers.unshift({
+            uid: 'seed-admin-01',
+            name: 'Master Admin',
+            email: 'admin@indushi.id',
+            role: 'admin',
+            status: 'active',
+            Verified: true,
+            Created_at: { date: '2026-09-01', timestamp: 1788220800000 },
+            createdAt: '2026-09-01 10:00'
+          });
+        }
+        localStorage.setItem('indushi_registered_user_list', JSON.stringify(storedUsers));
+
+        // 2. Clean mock seed orders
+        let storedOrders = JSON.parse(localStorage.getItem('indushi_orders') || '[]');
+        storedOrders = storedOrders.filter(o => !['ORD-1001', 'ORD-1002'].includes(o.id));
+        localStorage.setItem('indushi_orders', JSON.stringify(storedOrders));
+
+        // 3. Clean mock seed bookings
+        let storedBookings = JSON.parse(localStorage.getItem('indushi_bookings') || '[]');
+        storedBookings = storedBookings.filter(b => b.id !== 'RSV-501');
+        localStorage.setItem('indushi_bookings', JSON.stringify(storedBookings));
+
+        // 4. Clean mock seed QA reports
+        let storedQa = JSON.parse(localStorage.getItem('indushi_qa_reports') || '[]');
+        storedQa = storedQa.filter(q => !['QA-001', 'QA-002', 'QA-003'].includes(q.id));
+        localStorage.setItem('indushi_qa_reports', JSON.stringify(storedQa));
+
+        // 5. If active session was seed-user-01, log them out
+        const storedUser = JSON.parse(localStorage.getItem('indushi_user') || 'null');
+        if (storedUser && (storedUser.uid === 'seed-user-01' || storedUser.email === 'user@indushi.id')) {
+          localStorage.removeItem('indushi_user');
+        }
+
+        localStorage.setItem(CLEANUP_KEY, 'true');
+      } catch (err) {
+        console.warn("Storage cleanup note:", err);
+      }
+    }
+  })();
+
   // --- STATE MANAGEMENT ---
   const state = {
     user: JSON.parse(localStorage.getItem('indushi_user')) || null,
@@ -34,55 +84,11 @@ document.addEventListener('DOMContentLoaded', () => {
         Verified: true,
         Created_at: { date: '2026-09-01', timestamp: 1788220800000 },
         createdAt: '2026-09-01 10:00'
-      },
-      {
-        uid: 'seed-user-01',
-        name: 'Sebastian Jefferson',
-        email: 'user@indushi.id',
-        role: 'customer',
-        status: 'active',
-        Verified: true,
-        Created_at: { date: '2026-09-02', timestamp: 1788314400000 },
-        createdAt: '2026-09-02 12:00'
       }
     ],
     products: JSON.parse(localStorage.getItem('indushi_products')) || INITIAL_PRODUCTS,
-    orders: JSON.parse(localStorage.getItem('indushi_orders')) || [
-      {
-        id: 'ORD-1001',
-        customer: 'Reza Rahardian',
-        phone: '081299887766',
-        address: 'Jl. Senopati No. 42, Jakarta Selatan',
-        items: '1x Rendang Aburi Supreme Roll, 1x Es Cendol Matcha',
-        total: 100000,
-        paymentMethod: 'QRIS',
-        status: 'Delivered',
-        createdAt: '2026-09-04 14:30'
-      },
-      {
-        id: 'ORD-1002',
-        customer: 'Sarah Amalia',
-        phone: '081345678901',
-        address: 'SCBD Tower 2 Lt. 15, Jakarta Pusat',
-        items: '1x Pesta Nusantara Platter Tower',
-        total: 890000,
-        paymentMethod: 'GoPay',
-        status: 'Pending',
-        createdAt: '2026-09-05 08:15'
-      }
-    ],
-    bookings: JSON.parse(localStorage.getItem('indushi_bookings')) || [
-      {
-        id: 'RSV-501',
-        name: 'Michael Tan',
-        email: 'michael.tan@gmail.com',
-        date: '2026-09-06',
-        time: '18:30',
-        pax: '4 Guests',
-        status: 'Confirmed',
-        createdAt: '2026-09-04 19:00'
-      }
-    ],
+    orders: JSON.parse(localStorage.getItem('indushi_orders')) || [],
+    bookings: JSON.parse(localStorage.getItem('indushi_bookings')) || [],
     siteSettings: JSON.parse(localStorage.getItem('indushi_settings')) || {
       showAnnouncement: true,
       announcementText: 'Get 20% OFF on all Signature Rolls with code INDUSHIFUSION20!',
@@ -95,42 +101,8 @@ document.addEventListener('DOMContentLoaded', () => {
     heroAutoTimer: null,
     cart: JSON.parse(localStorage.getItem('indushi_cart')) || [],
     
-    // QA & Bug Tracker State
-    qaReports: JSON.parse(localStorage.getItem('indushi_qa_reports')) || [
-      {
-        id: 'QA-001',
-        topic: 'Checkout button unresponsive on mobile Safari iOS',
-        priority: 'Critical',
-        username: 'Sebastian Jefferson',
-        proof: 'https://images.unsplash.com/photo-1555421689-491a97ff2040?w=600&auto=format&fit=crop&q=80',
-        status: 'In Progress',
-        fixAttempts: 2,
-        description: 'When tapping the "Proceed to Checkout" button on iPhone 13 running Safari, the button stays in depressed state and does not trigger payment confirmation modal. Console throws touch listener timeout.',
-        createdAt: '2026-09-08 14:10'
-      },
-      {
-        id: 'QA-002',
-        topic: 'Custom Sushi builder spice slider snaps back to 0',
-        priority: 'Medium',
-        username: 'Budi Santoso',
-        proof: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&auto=format&fit=crop&q=80',
-        status: 'Solved',
-        fixAttempts: 1,
-        description: 'Adjusting the spice slider in Custom Roll Builder resets back to level 0 whenever Rendang Aburi is selected as the primary topping.',
-        createdAt: '2026-09-09 11:25'
-      },
-      {
-        id: 'QA-003',
-        topic: 'Table reservation date picker allows past booking dates',
-        priority: 'High',
-        username: 'Citra Kirana',
-        proof: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&auto=format&fit=crop&q=80',
-        status: 'New',
-        fixAttempts: 0,
-        description: 'The reservation calendar input does not set min attribute to today, allowing users to pick yesterday and submit invalid reservations.',
-        createdAt: '2026-09-11 16:45'
-      }
-    ],
+    // QA & Bug Tracker State (Clean actual reports)
+    qaReports: JSON.parse(localStorage.getItem('indushi_qa_reports')) || [],
 
     // Custom Roll Builder State
     customRoll: {
@@ -196,63 +168,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // 2. Real-time Customer Orders Sync across all Admins
       onSnapshot(collection(db, "orders"), (snapshot) => {
+        const orderList = [];
         if (!snapshot.empty) {
-          const orderList = [];
           snapshot.forEach(docSnap => {
-            orderList.push({ id: docSnap.id, ...docSnap.data() });
+            if (!['ORD-1001', 'ORD-1002'].includes(docSnap.id)) {
+              orderList.push({ id: docSnap.id, ...docSnap.data() });
+            }
           });
           orderList.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-          state.orders = orderList;
-          saveOrders();
-          if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
-            renderAdminOrders();
-            renderAdminOverview();
-          }
+        }
+        state.orders = orderList;
+        saveOrders();
+        if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
+          renderAdminOrders();
+          renderAdminOverview();
         }
       }, (err) => console.warn("Firestore orders sync note:", err));
 
       // 3. Real-time Table Reservations Sync
       onSnapshot(collection(db, "bookings"), (snapshot) => {
+        const bookingList = [];
         if (!snapshot.empty) {
-          const bookingList = [];
           snapshot.forEach(docSnap => {
-            bookingList.push({ id: docSnap.id, ...docSnap.data() });
+            if (docSnap.id !== 'RSV-501') {
+              bookingList.push({ id: docSnap.id, ...docSnap.data() });
+            }
           });
           bookingList.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-          state.bookings = bookingList;
-          saveBookings();
-          if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
-            renderAdminBookings();
-            renderAdminOverview();
-          }
+        }
+        state.bookings = bookingList;
+        saveBookings();
+        if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
+          renderAdminBookings();
+          renderAdminOverview();
         }
       }, (err) => console.warn("Firestore bookings sync note:", err));
 
       // 4. Real-time Registered User Accounts Sync
       onSnapshot(collection(db, "users"), (snapshot) => {
+        const userList = [];
         if (!snapshot.empty) {
-          const userList = [];
           snapshot.forEach(docSnap => {
-            userList.push({ uid: docSnap.id, ...docSnap.data() });
+            if (docSnap.id !== 'seed-user-01') {
+              userList.push({ uid: docSnap.id, ...docSnap.data() });
+            }
           });
-          if (!userList.some(u => u.email.toLowerCase() === 'admin@indushi.id')) {
-            userList.unshift({
-              uid: 'seed-admin-01',
-              name: 'Master Admin',
-              email: 'admin@indushi.id',
-              role: 'admin',
-              status: 'active',
-              Verified: true,
-              Created_at: { date: '2026-09-01', timestamp: 1788220800000 },
-              createdAt: '2026-09-01 10:00'
-            });
-          }
-          state.registeredUserList = userList;
-          saveRegisteredUserList();
-          if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
-            renderAdminUsers();
-            renderAdminOverview();
-          }
+        }
+        if (!userList.some(u => u.email && u.email.toLowerCase() === 'admin@indushi.id')) {
+          userList.unshift({
+            uid: 'seed-admin-01',
+            name: 'Master Admin',
+            email: 'admin@indushi.id',
+            role: 'admin',
+            status: 'active',
+            Verified: true,
+            Created_at: { date: '2026-09-01', timestamp: 1788220800000 },
+            createdAt: '2026-09-01 10:00'
+          });
+        }
+        // Filter out legacy mock users
+        state.registeredUserList = userList.filter(u => u.uid !== 'seed-user-01' && u.email !== 'user@indushi.id');
+        saveRegisteredUserList();
+        if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
+          renderAdminUsers();
+          renderAdminOverview();
         }
       }, (err) => console.warn("Firestore users sync note:", err));
 
@@ -267,31 +246,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // 6. Real-time QA & Bug Reports Sync across all Admins & Users
       onSnapshot(collection(db, "qa_reports"), (snapshot) => {
+        const reports = [];
         if (!snapshot.empty) {
-          const reports = [];
           snapshot.forEach(docSnap => {
-            reports.push({ id: docSnap.id, ...docSnap.data() });
+            if (!['QA-001', 'QA-002', 'QA-003'].includes(docSnap.id)) {
+              reports.push({ id: docSnap.id, ...docSnap.data() });
+            }
           });
-          // Sort chronologically ascending: QA-001, QA-002, QA-003...
           reports.sort((a, b) => {
             const numA = parseInt((a.id || '').replace(/\D/g, '')) || 0;
             const numB = parseInt((b.id || '').replace(/\D/g, '')) || 0;
             return numA - numB;
           });
-          state.qaReports = reports;
-          saveQaReports();
-          renderPublicQa();
-          if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
-            renderAdminQa();
-            renderAdminOverview();
-          }
-        } else {
-          // Seed initial default reports to Firestore if collection is empty
-          state.qaReports.forEach(async (r) => {
-            try {
-              await setDoc(doc(db, "qa_reports", r.id), r);
-            } catch (e) {}
-          });
+        }
+        state.qaReports = reports;
+        saveQaReports();
+        renderPublicQa();
+        if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
+          renderAdminQa();
+          renderAdminOverview();
         }
       }, (err) => console.warn("Firestore QA reports sync note:", err));
     } catch (err) {
@@ -2041,33 +2014,17 @@ document.addEventListener('DOMContentLoaded', () => {
               email: 'admin@indushi.id',
               role: 'admin',
               status: 'active',
+              Verified: true,
+              Created_at: { date: '2026-09-01', timestamp: 1788220800000 },
               createdAt: '2026-09-01 10:00'
-            },
-            {
-              uid: 'seed-user-01',
-              name: 'Sebastian Jefferson',
-              email: 'user@indushi.id',
-              role: 'customer',
-              status: 'active',
-              createdAt: '2026-09-02 12:00'
             }
           ];
 
           state.products = INITIAL_PRODUCTS;
-          state.orders = [
-            {
-              id: 'ORD-1001',
-              customer: 'Reza Rahardian',
-              phone: '081299887766',
-              address: 'Jl. Senopati No. 42, Jakarta Selatan',
-              items: '1x Rendang Aburi Supreme Roll, 1x Es Cendol Matcha',
-              total: 100000,
-              paymentMethod: 'QRIS',
-              status: 'Delivered',
-              createdAt: '2026-09-04 14:30'
-            }
-          ];
+          state.orders = [];
           state.bookings = [];
+          state.qaReports = [];
+          localStorage.removeItem('indushi_qa_reports');
           state.siteSettings = {
             showAnnouncement: true,
             announcementText: 'Get 20% OFF on all Signature Rolls with code INDUSHIFUSION20!',
