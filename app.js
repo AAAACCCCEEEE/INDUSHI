@@ -143,22 +143,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- REAL-TIME BADGE & STATUS HELPER ---
   function updateAdminBadges() {
-    const pendingOrders = state.orders.filter(o => o.status === 'Pending').length;
-    const confirmedBookings = state.bookings.filter(b => b.status === 'Confirmed').length;
-    const pendingUsers = state.registeredUserList.filter(u => u.role !== 'admin' && u.status === 'pending').length;
-    const openBugs = state.qaReports.filter(r => r.status !== 'Solved').length;
+    const pendingOrders = state.orders ? state.orders.filter(o => o.status === 'Pending').length : 0;
+    const confirmedBookings = state.bookings ? state.bookings.filter(b => b.status === 'Confirmed').length : 0;
+    const pendingUsers = state.registeredUserList ? state.registeredUserList.filter(u => u.role !== 'admin' && u.status === 'pending').length : 0;
+    const openBugs = state.qaReports ? state.qaReports.filter(r => r.status !== 'Solved').length : 0;
 
-    const adminOrdersBadge = document.getElementById('adminOrdersBadge');
-    if (adminOrdersBadge) adminOrdersBadge.textContent = pendingOrders;
+    const setBadge = (id, count) => {
+      const el = typeof id === 'string' ? document.getElementById(id) : id;
+      if (!el) return;
+      const num = Number(count) || 0;
+      el.textContent = num;
+      el.setAttribute('data-count', num);
+      if (num > 0) {
+        el.style.display = 'inline-flex';
+        el.classList.remove('badge-zero');
+      } else {
+        el.style.display = 'none';
+        el.classList.add('badge-zero');
+      }
+    };
 
-    const adminBookingsBadge = document.getElementById('adminBookingsBadge');
-    if (adminBookingsBadge) adminBookingsBadge.textContent = confirmedBookings;
-
-    const adminUsersBadge = document.getElementById('adminUsersBadge');
-    if (adminUsersBadge) adminUsersBadge.textContent = pendingUsers;
-
-    const adminQaBadge = document.getElementById('adminQaBadge');
-    if (adminQaBadge) adminQaBadge.textContent = openBugs;
+    setBadge('adminOrdersBadge', pendingOrders);
+    setBadge('adminBookingsBadge', confirmedBookings);
+    setBadge('adminUsersBadge', pendingUsers);
+    setBadge('adminQaBadge', openBugs);
   }
 
   function getBadgeStatusClass(status) {
@@ -1851,6 +1859,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (adminDashboardModal) adminDashboardModal.classList.add('active');
     if (adminLoggedName && state.user) adminLoggedName.textContent = state.user.name;
+    updateAdminBadges();
 
     switchAdminTab(targetTab);
   }
@@ -2089,11 +2098,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('kpiBookingsCount').textContent = state.bookings.length;
     document.getElementById('kpiBookingsConfirmed').textContent = `${confirmedBookings} Confirmed Seats`;
 
-    document.getElementById('adminOrdersBadge').textContent = pendingOrders;
-    document.getElementById('adminBookingsBadge').textContent = confirmedBookings;
-    
-    const adminUsersBadge = document.getElementById('adminUsersBadge');
-    if (adminUsersBadge) adminUsersBadge.textContent = pendingUsers.length;
+    updateAdminBadges();
 
     // Overview Pending Users Alert Banner
     const overviewAlert = document.getElementById('overviewPendingUsersAlert');
@@ -2129,12 +2134,6 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         overviewAlert.innerHTML = '';
       }
-    }
-
-    const adminQaBadge = document.getElementById('adminQaBadge');
-    if (adminQaBadge) {
-      const openBugs = state.qaReports.filter(r => r.status !== 'Solved').length;
-      adminQaBadge.textContent = openBugs;
     }
 
     // Recent 5 Orders
@@ -2253,8 +2252,7 @@ document.addEventListener('DOMContentLoaded', () => {
       usersTotalCount.textContent = `${state.registeredUserList.length} Total Registered`;
     }
 
-    const adminUsersBadge = document.getElementById('adminUsersBadge');
-    if (adminUsersBadge) adminUsersBadge.textContent = pendingCount;
+    updateAdminBadges();
 
     // Filter list by selected filter tab and search query
     let filteredList = state.registeredUserList;
@@ -2544,6 +2542,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminOrdersTableBody = document.getElementById('adminOrdersTableBody');
     const ordersTotalCount = document.getElementById('ordersTotalCount');
 
+    updateAdminBadges();
     ordersTotalCount.textContent = `${state.orders.length} Total Orders`;
 
     if (state.orders.length === 0) {
@@ -2623,6 +2622,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminBookingsTableBody = document.getElementById('adminBookingsTableBody');
     const bookingsTotalCount = document.getElementById('bookingsTotalCount');
 
+    updateAdminBadges();
     bookingsTotalCount.textContent = `${state.bookings.length} Total Bookings`;
 
     if (state.bookings.length === 0) {
@@ -3577,13 +3577,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const newEl = document.getElementById('adminQaKpiNew');
     const progEl = document.getElementById('adminQaKpiInProgress');
     const solvEl = document.getElementById('adminQaKpiSolved');
-    const badgeEl = document.getElementById('adminQaBadge');
 
     if (totalEl) totalEl.textContent = total;
     if (newEl) newEl.textContent = newCount;
     if (progEl) progEl.textContent = inProgressCount;
     if (solvEl) solvEl.textContent = solvedCount;
-    if (badgeEl) badgeEl.textContent = (newCount + inProgressCount);
+    updateAdminBadges();
 
     // 2. Filters
     const searchVal = (document.getElementById('adminQaSearch')?.value || '').toLowerCase().trim();
@@ -3969,6 +3968,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initRoutesModal();
     updateCartUI();
     updateUserNavUI();
+    updateAdminBadges();
     initFirestoreRealtimeSync();
     initQaSystem();
     initRouterSystem();
