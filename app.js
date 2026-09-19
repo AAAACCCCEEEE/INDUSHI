@@ -97,6 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
     activeCategory: 'all',
     spiceFilter: 'all',
     styleFilter: 'all',
+    adminUserFilter: 'all',
+    adminUserSearchQuery: '',
     currentHeroSlide: 0,
     heroAutoTimer: null,
     cart: JSON.parse(localStorage.getItem('indushi_cart')) || [],
@@ -139,9 +141,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- REAL-TIME FIRESTORE MULTI-ADMIN CLOUD SYNC ---
+  // --- REAL-TIME BADGE & STATUS HELPER ---
+  function updateAdminBadges() {
+    const pendingOrders = state.orders.filter(o => o.status === 'Pending').length;
+    const confirmedBookings = state.bookings.filter(b => b.status === 'Confirmed').length;
+    const pendingUsers = state.registeredUserList.filter(u => u.role !== 'admin' && u.status === 'pending').length;
+    const openBugs = state.qaReports.filter(r => r.status !== 'Solved').length;
+
+    const adminOrdersBadge = document.getElementById('adminOrdersBadge');
+    if (adminOrdersBadge) adminOrdersBadge.textContent = pendingOrders;
+
+    const adminBookingsBadge = document.getElementById('adminBookingsBadge');
+    if (adminBookingsBadge) adminBookingsBadge.textContent = confirmedBookings;
+
+    const adminUsersBadge = document.getElementById('adminUsersBadge');
+    if (adminUsersBadge) adminUsersBadge.textContent = pendingUsers;
+
+    const adminQaBadge = document.getElementById('adminQaBadge');
+    if (adminQaBadge) adminQaBadge.textContent = openBugs;
+  }
+
+  function getBadgeStatusClass(status) {
+    if (status === 'Pending') return 'badge-pending';
+    if (status === 'Cooking' || status === 'Confirmed') return 'badge-cooking';
+    if (status === 'Delivered' || status === 'Seated') return 'badge-delivered';
+    return 'badge-cancelled';
+  }
+
+  // --- REAL-TIME FIRESTORE MULTI-DEVICE CLOUD SYNC ---
   function initFirestoreRealtimeSync() {
     try {
+      // Helper to refresh active admin tab and badges live across devices
+      function refreshAdminDashboardLive() {
+        updateAdminBadges();
+        if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
+          const activeNav = document.querySelector('.admin-nav-item.active');
+          const activeTab = activeNav ? activeNav.getAttribute('data-admin-tab') : 'overview';
+          if (activeTab === 'overview' && typeof renderAdminOverview === 'function') renderAdminOverview();
+          else if (activeTab === 'products' && typeof renderAdminProducts === 'function') renderAdminProducts();
+          else if (activeTab === 'orders' && typeof renderAdminOrders === 'function') renderAdminOrders();
+          else if (activeTab === 'bookings' && typeof renderAdminBookings === 'function') renderAdminBookings();
+          else if (activeTab === 'users' && typeof renderAdminUsers === 'function') renderAdminUsers();
+          else if (activeTab === 'qa' && typeof renderAdminQa === 'function') renderAdminQa();
+        }
+      }
+
       // 1. Real-time Products Sync
       onSnapshot(collection(db, "products"), (snapshot) => {
         if (!snapshot.empty) {
@@ -151,11 +195,8 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           state.products = items;
           saveProducts();
-          renderProducts();
-          if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
-            renderAdminProducts();
-            renderAdminOverview();
-          }
+          if (typeof renderProducts === 'function') renderProducts();
+          refreshAdminDashboardLive();
         } else {
           // Seed products to Cloud Firestore if empty
           INITIAL_PRODUCTS.forEach(async (p) => {
@@ -166,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }, (err) => console.warn("Firestore products sync note:", err));
 
-      // 2. Real-time Customer Orders Sync across all Admins
+      // 2. Real-time Customer Orders Sync across all Admins & Devices
       onSnapshot(collection(db, "orders"), (snapshot) => {
         const orderList = [];
         if (!snapshot.empty) {
@@ -179,10 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         state.orders = orderList;
         saveOrders();
-        if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
-          renderAdminOrders();
-          renderAdminOverview();
-        }
+        refreshAdminDashboardLive();
       }, (err) => console.warn("Firestore orders sync note:", err));
 
       // 3. Real-time Table Reservations Sync
@@ -198,13 +236,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         state.bookings = bookingList;
         saveBookings();
-        if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
-          renderAdminBookings();
-          renderAdminOverview();
-        }
+        refreshAdminDashboardLive();
       }, (err) => console.warn("Firestore bookings sync note:", err));
 
-      // 4. Real-time Registered User Accounts Sync
+      // 4. Real-time Registered User Accounts Sync across all devices
       onSnapshot(collection(db, "users"), (snapshot) => {
         const userList = [];
         if (!snapshot.empty) {
@@ -215,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
         if (!userList.some(u => u.email && u.email.toLowerCase() === 'admin@indushi.id')) {
-          userList.unshift({
+          const adminObj = {
             uid: 'seed-admin-01',
             name: 'Master Admin',
             email: 'admin@indushi.id',
@@ -224,15 +259,17 @@ document.addEventListener('DOMContentLoaded', () => {
             Verified: true,
             Created_at: { date: '2026-09-01', timestamp: 1788220800000 },
             createdAt: '2026-09-01 10:00'
-          });
+          };
+          userList.unshift(adminObj);
+          // Also persist admin account to Firestore so all devices see it identically
+          try {
+            setDoc(doc(db, "users", "seed-admin-01"), adminObj, { merge: true });
+          } catch (e) {}
         }
         // Filter out legacy mock users
         state.registeredUserList = userList.filter(u => u.uid !== 'seed-user-01' && u.email !== 'user@indushi.id');
         saveRegisteredUserList();
-        if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
-          renderAdminUsers();
-          renderAdminOverview();
-        }
+        refreshAdminDashboardLive();
       }, (err) => console.warn("Firestore users sync note:", err));
 
       // 5. Real-time Site Settings Sync
@@ -240,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (docSnap.exists()) {
           state.siteSettings = docSnap.data();
           saveSettings();
-          initAnnouncementBar();
+          if (typeof initAnnouncementBar === 'function') initAnnouncementBar();
         }
       }, (err) => console.warn("Firestore settings sync note:", err));
 
@@ -261,11 +298,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         state.qaReports = reports;
         saveQaReports();
-        renderPublicQa();
-        if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
-          renderAdminQa();
-          renderAdminOverview();
-        }
+        if (typeof renderPublicQa === 'function') renderPublicQa();
+        refreshAdminDashboardLive();
       }, (err) => console.warn("Firestore QA reports sync note:", err));
     } catch (err) {
       console.warn("Firestore realtime init note:", err);
@@ -390,26 +424,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const openRoutesModalNavBtn = document.getElementById('openRoutesModalNavBtn');
   const adminOpenRoutesBtn = document.getElementById('adminOpenRoutesBtn');
   const adminRouteBadge = document.getElementById('adminRouteBadge');
-
-  // --- INITIALIZATION ---
-  initAnnouncementBar();
-  initNavbar();
-  initAuthSystem();
-  initHeroSlider();
-  initCategories();
-  initFilters();
-  renderProducts();
-  initCustomBuilder();
-  renderPlatters();
-  renderTestimonials();
-  initCartAndModals();
-  initAdminDashboard();
-  initRoutesModal();
-  updateCartUI();
-  updateUserNavUI();
-  initFirestoreRealtimeSync();
-  initQaSystem();
-  initRouterSystem();
 
   // --- ANNOUNCEMENT BAR LOGIC ---
   function initAnnouncementBar() {
@@ -2155,9 +2169,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- RENDER ADMIN TAB 5: USER VERIFICATIONS ---
-  let adminUserFilter = 'all';
-  let adminUserSearchQuery = '';
-
   function renderAdminUsers() {
     const adminUsersTableBody = document.getElementById('adminUsersTableBody');
     const usersTotalCount = document.getElementById('usersTotalCount');
@@ -2172,7 +2183,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pill.addEventListener('click', () => {
           adminUserFilterPills.querySelectorAll('.admin-filter-pill').forEach(p => p.classList.remove('active'));
           pill.classList.add('active');
-          adminUserFilter = pill.getAttribute('data-filter') || 'all';
+          state.adminUserFilter = pill.getAttribute('data-filter') || 'all';
           renderAdminUsers();
         });
       });
@@ -2182,7 +2193,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (adminUsersSearch && !adminUsersSearch.dataset.initialized) {
       adminUsersSearch.dataset.initialized = 'true';
       adminUsersSearch.addEventListener('input', (e) => {
-        adminUserSearchQuery = e.target.value.trim();
+        state.adminUserSearchQuery = e.target.value.trim();
         renderAdminUsers();
       });
     }
@@ -2247,16 +2258,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Filter list by selected filter tab and search query
     let filteredList = state.registeredUserList;
-    if (adminUserFilter === 'pending') {
+    if (state.adminUserFilter === 'pending') {
       filteredList = filteredList.filter(u => u.role !== 'admin' && u.status === 'pending');
-    } else if (adminUserFilter === 'active') {
+    } else if (state.adminUserFilter === 'active') {
       filteredList = filteredList.filter(u => u.role !== 'admin' && u.status === 'active');
-    } else if (adminUserFilter === 'rejected') {
+    } else if (state.adminUserFilter === 'rejected') {
       filteredList = filteredList.filter(u => u.role !== 'admin' && u.status === 'rejected');
     }
 
-    if (adminUserSearchQuery) {
-      const q = adminUserSearchQuery.toLowerCase();
+    if (state.adminUserSearchQuery) {
+      const q = state.adminUserSearchQuery.toLowerCase();
       filteredList = filteredList.filter(u => 
         (u.name && u.name.toLowerCase().includes(q)) || 
         (u.email && u.email.toLowerCase().includes(q)) ||
@@ -2265,7 +2276,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (filteredList.length === 0) {
-      adminUsersTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:2.5rem 1rem; color:var(--text-muted);"><i class="fa-solid fa-users-slash" style="font-size:1.8rem; margin-bottom:0.6rem; display:block; opacity:0.5;"></i>No accounts found matching current filter (<strong>${adminUserFilter}</strong>).</td></tr>`;
+      adminUsersTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:2.5rem 1rem; color:var(--text-muted);"><i class="fa-solid fa-users-slash" style="font-size:1.8rem; margin-bottom:0.6rem; display:block; opacity:0.5;"></i>No accounts found matching current filter (<strong>${state.adminUserFilter}</strong>).</td></tr>`;
       return;
     }
 
@@ -3941,4 +3952,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 3500);
   }
 
+  // --- APPLICATION BOOTSTRAP INITIALIZATION ---
+  function bootstrapApp() {
+    initAnnouncementBar();
+    initNavbar();
+    initAuthSystem();
+    initHeroSlider();
+    initCategories();
+    initFilters();
+    renderProducts();
+    initCustomBuilder();
+    renderPlatters();
+    renderTestimonials();
+    initCartAndModals();
+    initAdminDashboard();
+    initRoutesModal();
+    updateCartUI();
+    updateUserNavUI();
+    initFirestoreRealtimeSync();
+    initQaSystem();
+    initRouterSystem();
+  }
+
+  bootstrapApp();
+
 });
+
