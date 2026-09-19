@@ -725,7 +725,12 @@
         </div>
         <div class="form-group">
           <label for="loginPassword"><i class="fa-solid fa-lock"></i> Password</label>
-          <input type="password" id="loginPassword" placeholder="••••••••" required>
+          <div class="password-input-wrap">
+            <input type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password">
+            <button type="button" class="btn-toggle-password" data-target="loginPassword" aria-label="Show or hide password" title="Show/hide password">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
         </div>
         <button type="submit" class="btn btn-primary" style="width:100%; margin-top:1rem;">
           <i class="fa-solid fa-right-to-bracket"></i> Sign In to Account
@@ -749,7 +754,12 @@
         </div>
         <div class="form-group">
           <label for="regPassword"><i class="fa-solid fa-lock"></i> Password</label>
-          <input type="password" id="regPassword" placeholder="••••••••" required>
+          <div class="password-input-wrap">
+            <input type="password" id="regPassword" placeholder="••••••••" required autocomplete="new-password">
+            <button type="button" class="btn-toggle-password" data-target="regPassword" aria-label="Show or hide password" title="Show/hide password">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
         </div>
         <button type="submit" class="btn btn-primary" style="width:100%; margin-top:1rem;">
           <i class="fa-solid fa-user-plus"></i> Register Customer Account

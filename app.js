@@ -548,6 +548,26 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // Password Visibility Toggle (Show / Hide Password)
+    document.querySelectorAll('.btn-toggle-password').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const targetId = btn.getAttribute('data-target');
+        const input = document.getElementById(targetId);
+        if (!input) return;
+
+        const isCurrentlyPassword = input.type === 'password';
+        input.type = isCurrentlyPassword ? 'text' : 'password';
+
+        const icon = btn.querySelector('i');
+        if (icon) {
+          icon.className = isCurrentlyPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+        }
+        btn.setAttribute('aria-label', isCurrentlyPassword ? 'Hide password' : 'Show password');
+        btn.setAttribute('title', isCurrentlyPassword ? 'Hide password' : 'Show password');
+      });
+    });
+
     // Firebase Auth State Listener
     onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
