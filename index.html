@@ -508,6 +508,7 @@
                 <th style="width: 140px;">Proof (Screenshot)</th>
                 <th style="width: 120px;">Status</th>
                 <th style="width: 130px;">Fix Attempts</th>
+                <th style="width: 110px; text-align:right;">Actions</th>
               </tr>
             </thead>
             <tbody id="publicQaTableBody">
@@ -928,6 +929,103 @@
     </div>
   </div>
 
+  <!-- QA Edit Report Modal -->
+  <div class="modal-overlay" id="qaEditModal">
+    <div class="modal-box" style="max-width: 720px;">
+      <button class="close-modal-btn" id="closeQaEditModalBtn">&times;</button>
+      <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.4rem;">
+        <h2 style="margin:0;">
+          <i class="fa-solid fa-pen-to-square" style="color:var(--primary-accent);"></i> Edit QA Bug Report
+        </h2>
+        <span class="qa-id-pill" id="qaEditIdBadge" style="font-size:0.85rem;">QA-001</span>
+      </div>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.2rem;">
+        Update report details, modify status or priority, adjust fix attempt iterations, and manage attached screenshot proofs.
+      </p>
+
+      <form id="qaEditForm">
+        <input type="hidden" id="qaEditId">
+
+        <div class="form-group">
+          <label for="qaEditTopic"><i class="fa-solid fa-heading"></i> Topic / Issue Summary</label>
+          <input type="text" id="qaEditTopic" required>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.8rem;">
+          <div class="form-group">
+            <label for="qaEditPriority"><i class="fa-solid fa-triangle-exclamation"></i> Priority</label>
+            <select id="qaEditPriority" required>
+              <option value="Critical">🔴 Critical (Blocking / Crash)</option>
+              <option value="High">🟠 High (Major feature glitch)</option>
+              <option value="Medium">🟡 Medium (Minor glitch / flow)</option>
+              <option value="Low">🟢 Low (Visual / Polish suggestion)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="qaEditStatus"><i class="fa-solid fa-circle-check"></i> Status</label>
+            <select id="qaEditStatus" required>
+              <option value="New">New</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Solved">Solved</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="qaEditFixAttempts"><i class="fa-solid fa-wrench"></i> Fix Attempts</label>
+            <input type="number" id="qaEditFixAttempts" min="0" max="99" value="0" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="qaEditUsername"><i class="fa-solid fa-user"></i> Reporter Name / Username</label>
+          <input type="text" id="qaEditUsername" required>
+        </div>
+
+        <!-- Attached Images Manager -->
+        <div class="form-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+            <label style="margin:0;"><i class="fa-solid fa-images"></i> Attached Proof Screenshots</label>
+            <span id="qaEditAttachedCountBadge" style="font-size:0.75rem; padding:2px 8px; border-radius:12px; background:rgba(232,80,29,0.2); color:var(--primary-accent); font-weight:700;">0 Images</span>
+          </div>
+
+          <!-- Existing Images Strip -->
+          <div class="qa-images-gallery-strip" id="qaEditGalleryStrip" style="margin-bottom:0.75rem;">
+            <div class="qa-gallery-items-container" id="qaEditGalleryContainer">
+              <!-- Rendered dynamically with remove buttons -->
+            </div>
+          </div>
+
+          <!-- Add new image inputs -->
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <input type="url" id="qaEditNewProofUrl" placeholder="https://... add image link" style="flex:1; min-width:180px;">
+            <button type="button" class="btn btn-outline" id="qaEditAddUrlBtn" style="padding:0.6rem 0.85rem; font-size:0.8rem; white-space:nowrap;">
+              <i class="fa-solid fa-plus"></i> Add Link
+            </button>
+            <label class="btn btn-outline" for="qaEditProofFile" style="cursor:pointer; padding:0.6rem 0.85rem; font-size:0.8rem; margin:0; display:inline-flex; align-items:center; gap:0.4rem; white-space:nowrap;">
+              <i class="fa-solid fa-upload"></i> Upload
+              <input type="file" id="qaEditProofFile" accept="image/*" multiple style="display:none;">
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="qaEditDescription"><i class="fa-solid fa-align-left"></i> Problem Description & Steps to Reproduce</label>
+          <textarea id="qaEditDescription" rows="3" required></textarea>
+        </div>
+
+        <div style="display:flex; gap:0.75rem; margin-top:1.2rem;">
+          <button type="button" class="btn btn-secondary" id="qaEditCancelBtn" style="flex:1;">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary" id="qaEditSubmitBtn" style="flex:2;">
+            <i class="fa-solid fa-floppy-disk"></i> Save QA Changes
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- QA Proof & Problem Description Inspection Modal -->
   <div class="modal-overlay" id="qaProofLightboxModal">
     <div class="modal-box qa-inspector-modal-box">
@@ -995,9 +1093,12 @@
             </div>
           </div>
 
-          <div class="qa-inspector-footer">
+          <div class="qa-inspector-footer" style="display:flex; gap:0.6rem;">
             <button class="btn btn-secondary" id="qaInspectCloseBtn" style="flex:1;">
               Close Inspector
+            </button>
+            <button class="btn btn-primary" id="qaInspectEditBtn" style="flex:1;">
+              <i class="fa-solid fa-pen-to-square"></i> Edit Report
             </button>
           </div>
         </div>

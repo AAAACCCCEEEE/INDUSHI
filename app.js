@@ -127,13 +127,29 @@ document.addEventListener('DOMContentLoaded', () => {
         map.set(em, u);
       } else {
         const prev = map.get(em);
+        const isPrevActive = prev.status === 'active' || prev.Verified === true || prev.verified === true;
+        const isUActive = u.status === 'active' || u.Verified === true || u.verified === true;
+        const isPrevAdmin = prev.role === 'admin';
+        const isUAdmin = u.role === 'admin';
         const isPrevTemp = prev.uid && (prev.uid.startsWith('cust_') || prev.uid === 'seed-admin-01');
         const isCurrTemp = u.uid && (u.uid.startsWith('cust_') || u.uid === 'seed-admin-01');
-        if (isPrevTemp && !isCurrTemp) {
-          map.set(em, { ...prev, ...u });
-        } else {
-          map.set(em, { ...u, ...prev });
+
+        // Merge records
+        const merged = { ...prev, ...u };
+        if (isPrevActive || isUActive) {
+          merged.status = 'active';
+          merged.Verified = true;
+          merged.verified = true;
         }
+        if (isPrevAdmin || isUAdmin) {
+          merged.role = 'admin';
+        }
+        if (!isPrevTemp && isCurrTemp) {
+          merged.uid = prev.uid;
+        } else if (isPrevTemp && !isCurrTemp) {
+          merged.uid = u.uid;
+        }
+        map.set(em, merged);
       }
     }
     state.registeredUserList = Array.from(map.values());
@@ -326,15 +342,31 @@ document.addEventListener('DOMContentLoaded', () => {
             deduplicatedMap.set(em, u);
           } else {
             const existing = deduplicatedMap.get(em);
+            const isExistingActive = existing.status === 'active' || existing.Verified === true || existing.verified === true;
+            const isUActive = u.status === 'active' || u.Verified === true || u.verified === true;
             const isExistingTemp = existing.uid && (existing.uid.startsWith('cust_') || existing.uid === 'seed-admin-01');
             const isUTemp = u.uid && (u.uid.startsWith('cust_') || u.uid === 'seed-admin-01');
+
+            const merged = { ...existing, ...u };
+            if (isExistingActive || isUActive) {
+              merged.status = 'active';
+              merged.Verified = true;
+              merged.verified = true;
+            }
+            if (existing.role === 'admin' || u.role === 'admin') {
+              merged.role = 'admin';
+            }
+
             if (isExistingTemp && !isUTemp) {
-              deduplicatedMap.set(em, { ...existing, ...u });
+              merged.uid = u.uid;
+              deduplicatedMap.set(em, merged);
               try { deleteDoc(doc(db, "users", existing.uid)); } catch(e){}
             } else if (!isExistingTemp && isUTemp) {
+              merged.uid = existing.uid;
+              deduplicatedMap.set(em, merged);
               try { deleteDoc(doc(db, "users", u.uid)); } catch(e){}
             } else {
-              deduplicatedMap.set(em, { ...existing, ...u });
+              deduplicatedMap.set(em, merged);
             }
           }
         }
@@ -2529,6 +2561,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    saveRegisteredUserList();
+
     // Counts Calculation
     const pendingCount = state.registeredUserList.filter(u => u.role !== 'admin' && u.status === 'pending').length;
     const activeCount = state.registeredUserList.filter(u => u.role !== 'admin' && u.status === 'active').length;
@@ -2616,33 +2650,51 @@ document.addEventListener('DOMContentLoaded', () => {
     adminUsersTableBody.querySelectorAll('.btn-approve-user').forEach(btn => {
       btn.addEventListener('click', async () => {
         const uid = btn.getAttribute('data-id');
-        const email = btn.getAttribute('data-email');
-        const targetUser = state.registeredUserList.find(u => u.uid === uid || u.email === email);
+        const email = (btn.getAttribute('data-email') || '').toLowerCase().trim();
+        const nowIso = formatLocalDateTime(new Date());
 
-        if (targetUser) {
-          const nowIso = formatLocalDateTime(new Date());
-          targetUser.status = 'active';
-          targetUser.Verified = true;
-          targetUser.verified = true;
-          targetUser.verifiedAt = nowIso;
-          saveRegisteredUserList();
+        // Update ALL entries matching this email or UID in state.registeredUserList
+        state.registeredUserList.forEach(u => {
+          if ((u.email && u.email.toLowerCase().trim() === email) || (uid && u.uid === uid)) {
+            u.status = 'active';
+            u.Verified = true;
+            u.verified = true;
+            u.verifiedAt = nowIso;
+          }
+        });
+        saveRegisteredUserList();
 
-          // Sync status and Verified to Firestore
-          try {
+        // Sync to Firestore: update all documents with this email in Firestore
+        try {
+          const qSnap = await getDocs(collection(db, "users"));
+          let foundDoc = false;
+          for (const dSnap of qSnap.docs) {
+            const data = dSnap.data();
+            if (dSnap.id === uid || (data.email && data.email.toLowerCase().trim() === email)) {
+              await setDoc(doc(db, "users", dSnap.id), {
+                status: 'active',
+                Verified: true,
+                verified: true,
+                verifiedAt: nowIso
+              }, { merge: true });
+              foundDoc = true;
+            }
+          }
+          if (!foundDoc && uid) {
             await setDoc(doc(db, "users", uid), {
               status: 'active',
               Verified: true,
               verified: true,
               verifiedAt: nowIso
             }, { merge: true });
-          } catch (e) {
-            console.warn("Firestore status approve update note:", e);
           }
-
-          renderAdminUsers();
-          renderAdminOverview();
-          showToast(`User ${email} approved! Account is now active & verified. ✅`, 'success');
+        } catch (e) {
+          console.warn("Firestore status approve update note:", e);
         }
+
+        renderAdminUsers();
+        renderAdminOverview();
+        showToast(`User ${email} approved! Account is now active & verified. ✅`, 'success');
       });
     });
 
@@ -3656,10 +3708,14 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    let currentInspectedReportId = null;
+
     // Open Inspection Modal (Multi-screenshot carousel + problem description)
     window.openQaInspectionModal = function(reportId) {
       const report = state.qaReports.find(r => r.id === reportId);
       if (!report) return;
+
+      currentInspectedReportId = reportId;
 
       if (Array.isArray(report.proofs) && report.proofs.length > 0) {
         currentInspectionImages = report.proofs.filter(p => p && p.trim());
@@ -3692,6 +3748,205 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (qaProofLightboxModal) qaProofLightboxModal.classList.add('active');
     };
+
+    // Inspector Edit Button listener
+    const qaInspectEditBtn = document.getElementById('qaInspectEditBtn');
+    if (qaInspectEditBtn) {
+      qaInspectEditBtn.addEventListener('click', () => {
+        if (currentInspectedReportId) {
+          if (qaProofLightboxModal) qaProofLightboxModal.classList.remove('active');
+          openQaEditModal(currentInspectedReportId);
+        }
+      });
+    }
+
+    // --- QA EDIT MODAL SYSTEM ---
+    let editAttachedImages = [];
+
+    window.openQaEditModal = function(reportId) {
+      const report = state.qaReports.find(r => r.id === reportId);
+      if (!report) return;
+
+      const qaEditModal = document.getElementById('qaEditModal');
+      const qaEditId = document.getElementById('qaEditId');
+      const qaEditIdBadge = document.getElementById('qaEditIdBadge');
+      const qaEditTopic = document.getElementById('qaEditTopic');
+      const qaEditPriority = document.getElementById('qaEditPriority');
+      const qaEditStatus = document.getElementById('qaEditStatus');
+      const qaEditFixAttempts = document.getElementById('qaEditFixAttempts');
+      const qaEditUsername = document.getElementById('qaEditUsername');
+      const qaEditDescription = document.getElementById('qaEditDescription');
+      const qaEditNewProofUrl = document.getElementById('qaEditNewProofUrl');
+
+      if (qaEditId) qaEditId.value = report.id;
+      if (qaEditIdBadge) qaEditIdBadge.textContent = report.id;
+      if (qaEditTopic) qaEditTopic.value = report.topic || '';
+      if (qaEditPriority) qaEditPriority.value = report.priority || 'Medium';
+      if (qaEditStatus) qaEditStatus.value = report.status || 'New';
+      if (qaEditFixAttempts) qaEditFixAttempts.value = report.fixAttempts || 0;
+      if (qaEditUsername) qaEditUsername.value = report.username || '';
+      if (qaEditDescription) qaEditDescription.value = report.description || '';
+      if (qaEditNewProofUrl) qaEditNewProofUrl.value = '';
+
+      if (Array.isArray(report.proofs) && report.proofs.length > 0) {
+        editAttachedImages = report.proofs.filter(p => p && p.trim());
+      } else if (report.proof && report.proof.trim()) {
+        editAttachedImages = [report.proof.trim()];
+      } else {
+        editAttachedImages = [];
+      }
+
+      renderEditGallery();
+
+      if (qaEditModal) qaEditModal.classList.add('active');
+    };
+
+    function renderEditGallery() {
+      const container = document.getElementById('qaEditGalleryContainer');
+      const badge = document.getElementById('qaEditAttachedCountBadge');
+      if (!container) return;
+
+      if (badge) badge.textContent = `${editAttachedImages.length} Image${editAttachedImages.length !== 1 ? 's' : ''}`;
+
+      if (editAttachedImages.length === 0) {
+        container.innerHTML = `<span style="font-size:0.75rem; color:var(--text-muted); font-style:italic; padding:6px 0;">No screenshot proof attached. Add links or upload below.</span>`;
+        return;
+      }
+
+      container.innerHTML = editAttachedImages.map((src, idx) => `
+        <div class="qa-gallery-card" style="position:relative; width:80px;">
+          <button type="button" class="qa-gallery-remove-btn qa-edit-remove-img-btn" data-idx="${idx}" title="Remove screenshot">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+          <img src="${src}" alt="Screenshot ${idx + 1}" style="width:72px; height:48px; object-fit:cover; border-radius:4px;">
+          <span class="qa-gallery-card-label">Img ${idx + 1}</span>
+        </div>
+      `).join('');
+
+      container.querySelectorAll('.qa-edit-remove-img-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const idx = parseInt(btn.getAttribute('data-idx'), 10);
+          editAttachedImages.splice(idx, 1);
+          renderEditGallery();
+        });
+      });
+    }
+
+    function closeQaEditModal() {
+      const qaEditModal = document.getElementById('qaEditModal');
+      if (qaEditModal) qaEditModal.classList.remove('active');
+    }
+
+    // QA Edit Modal Event Listeners
+    const qaEditAddUrlBtn = document.getElementById('qaEditAddUrlBtn');
+    const qaEditNewProofUrl = document.getElementById('qaEditNewProofUrl');
+    if (qaEditAddUrlBtn && qaEditNewProofUrl) {
+      qaEditAddUrlBtn.addEventListener('click', () => {
+        const url = qaEditNewProofUrl.value.trim();
+        if (!url) {
+          showToast('Please enter an image link URL.', 'error');
+          return;
+        }
+        editAttachedImages.push(url);
+        qaEditNewProofUrl.value = '';
+        renderEditGallery();
+        showToast('Screenshot link added to report! 🖼️', 'success');
+      });
+      qaEditNewProofUrl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          qaEditAddUrlBtn.click();
+        }
+      });
+    }
+
+    const qaEditProofFile = document.getElementById('qaEditProofFile');
+    if (qaEditProofFile) {
+      qaEditProofFile.addEventListener('change', (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+        let loaded = 0;
+        files.forEach(file => {
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            editAttachedImages.push(evt.target.result);
+            loaded++;
+            if (loaded === files.length) {
+              renderEditGallery();
+              showToast(`${files.length} screenshot${files.length > 1 ? 's' : ''} uploaded! 📸`, 'success');
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+        qaEditProofFile.value = '';
+      });
+    }
+
+    const closeQaEditModalBtn = document.getElementById('closeQaEditModalBtn');
+    if (closeQaEditModalBtn) closeQaEditModalBtn.addEventListener('click', closeQaEditModal);
+
+    const qaEditCancelBtn = document.getElementById('qaEditCancelBtn');
+    if (qaEditCancelBtn) qaEditCancelBtn.addEventListener('click', closeQaEditModal);
+
+    const qaEditModalEl = document.getElementById('qaEditModal');
+    if (qaEditModalEl) {
+      qaEditModalEl.addEventListener('click', (e) => {
+        if (e.target === qaEditModalEl) closeQaEditModal();
+      });
+    }
+
+    const qaEditForm = document.getElementById('qaEditForm');
+    if (qaEditForm) {
+      qaEditForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('qaEditId').value;
+        const report = state.qaReports.find(r => r.id === id);
+        if (!report) return;
+
+        // Add any pending URL left in input
+        const pendingUrl = qaEditNewProofUrl ? qaEditNewProofUrl.value.trim() : '';
+        if (pendingUrl) {
+          editAttachedImages.push(pendingUrl);
+          qaEditNewProofUrl.value = '';
+        }
+
+        const newTopic = document.getElementById('qaEditTopic').value.trim();
+        const newPriority = document.getElementById('qaEditPriority').value;
+        const newStatus = document.getElementById('qaEditStatus').value;
+        const newFixAttempts = parseInt(document.getElementById('qaEditFixAttempts').value, 10) || 0;
+        const newUsername = document.getElementById('qaEditUsername').value.trim();
+        const newDesc = document.getElementById('qaEditDescription').value.trim();
+
+        report.topic = newTopic;
+        report.priority = newPriority;
+        report.status = newStatus;
+        report.fixAttempts = newFixAttempts;
+        report.username = newUsername;
+        report.description = newDesc;
+        report.proofs = [...editAttachedImages];
+        report.proof = editAttachedImages[0] || '';
+        report.updatedAt = formatLocalDateTime(new Date());
+
+        saveQaReports();
+
+        try {
+          await setDoc(doc(db, "qa_reports", id), report, { merge: true });
+        } catch (err) {
+          console.warn("Firestore QA update note:", err);
+        }
+
+        renderPublicQa();
+        if (adminDashboardModal && adminDashboardModal.classList.contains('active')) {
+          renderAdminQa();
+          renderAdminOverview();
+        }
+
+        closeQaEditModal();
+        showToast(`QA Report ${id} updated successfully! 🛠️`, 'success');
+      });
+    }
 
     // Submit QA Bug Report Form
     if (qaReportForm) {
@@ -3784,11 +4039,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (openCountEl) openCountEl.textContent = openCount;
 
     if (total === 0) {
-      tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No bug reports submitted yet. Everything looks running smoothly! ✨</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">No bug reports submitted yet. Everything looks running smoothly! ✨</td></tr>`;
       return;
     }
 
-    // Required column order: ID (chronological), Topic, Priority, Username, proof (screenshot), Status, Fix Attempts
+    // Required column order: ID (chronological), Topic, Priority, Username, proof (screenshot), Status, Fix Attempts, Actions
     tableBody.innerHTML = state.qaReports.map(report => {
       const proofsList = (Array.isArray(report.proofs) && report.proofs.length > 0)
         ? report.proofs.filter(p => p && p.trim())
@@ -3845,6 +4100,16 @@ document.addEventListener('DOMContentLoaded', () => {
               <strong>${report.fixAttempts || 0}</strong> ${(report.fixAttempts === 1) ? 'attempt' : 'attempts'}
             </span>
           </td>
+          <td style="text-align:right;">
+            <div style="display:inline-flex; gap:0.4rem;">
+              <button class="btn btn-outline qa-public-inspect-btn" data-id="${report.id}" title="Inspect Details" style="padding:0.35rem 0.65rem; font-size:0.8rem;">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+              <button class="btn btn-primary qa-public-edit-btn" data-id="${report.id}" title="Edit Report" style="padding:0.35rem 0.65rem; font-size:0.8rem;">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+            </div>
+          </td>
         </tr>
       `;
     }).join('');
@@ -3854,6 +4119,20 @@ document.addEventListener('DOMContentLoaded', () => {
       cell.addEventListener('click', () => {
         const id = cell.getAttribute('data-inspect-id');
         if (window.openQaInspectionModal) window.openQaInspectionModal(id);
+      });
+    });
+
+    tableBody.querySelectorAll('.qa-public-inspect-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        if (window.openQaInspectionModal) window.openQaInspectionModal(id);
+      });
+    });
+
+    tableBody.querySelectorAll('.qa-public-edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        if (window.openQaEditModal) window.openQaEditModal(id);
       });
     });
   }
@@ -3973,6 +4252,9 @@ document.addEventListener('DOMContentLoaded', () => {
               <button class="btn btn-outline qa-btn-inspect-row" data-id="${report.id}" title="Inspect Details" style="padding:0.35rem 0.65rem; font-size:0.8rem;">
                 <i class="fa-solid fa-eye"></i>
               </button>
+              <button class="btn btn-primary qa-btn-edit-row" data-id="${report.id}" title="Edit Bug Report" style="padding:0.35rem 0.65rem; font-size:0.8rem;">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
               <button class="btn btn-del-booking qa-btn-delete-row" data-id="${report.id}" title="Delete Bug Report" style="padding:0.35rem 0.65rem; font-size:0.8rem; background:rgba(231, 76, 60, 0.2); color:#e74c3c;">
                 <i class="fa-solid fa-trash"></i>
               </button>
@@ -3995,6 +4277,14 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         if (window.openQaInspectionModal) window.openQaInspectionModal(id);
+      });
+    });
+
+    // Event: Edit button
+    tableBody.querySelectorAll('.qa-btn-edit-row').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        if (window.openQaEditModal) window.openQaEditModal(id);
       });
     });
 
