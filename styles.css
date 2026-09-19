@@ -2414,6 +2414,52 @@ img {
   pointer-events: none;
 }
 
+/* Optional Proof Fallback (No Screenshot Attached) */
+.qa-no-proof-thumb {
+  width: 58px;
+  height: 42px;
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.025);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.qa-proof-cell:hover .qa-no-proof-thumb {
+  transform: scale(1.06);
+  border-color: rgba(232, 80, 29, 0.4);
+  background: rgba(232, 80, 29, 0.08);
+  color: var(--primary-accent);
+}
+
+.qa-no-proof-lightbox-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3.5rem 1.5rem;
+  min-height: 280px;
+  width: 100%;
+}
+
+.qa-btn-clear-image {
+  color: #e74c3c !important;
+  border-color: rgba(231, 76, 60, 0.35) !important;
+  background: rgba(231, 76, 60, 0.06) !important;
+  transition: all 0.2s ease;
+}
+
+.qa-btn-clear-image:hover {
+  background: rgba(231, 76, 60, 0.18) !important;
+  border-color: #e74c3c !important;
+  color: #ff7675 !important;
+}
+
 /* Fix Attempts Counter Badge */
 .qa-attempts-badge {
   display: inline-flex;

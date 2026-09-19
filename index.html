@@ -806,9 +806,9 @@
         </div>
 
         <div class="form-group">
-          <label><i class="fa-solid fa-image"></i> Proof (Screenshot Image & Annotation Studio)</label>
+          <label><i class="fa-solid fa-image"></i> Screenshot Proof & Annotations <span style="font-size:0.75rem; font-weight:normal; color:var(--text-muted);">(Optional)</span></label>
           <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:0.5rem;">
-            Upload your screenshot or paste an image link, then highlight the issue area using boxes or notes below.
+            Upload your screenshot or paste an image link (optional), then highlight the issue area using boxes or notes below.
           </p>
           <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
             <input type="url" id="qaProofUrl" placeholder="https://images.unsplash.com/... or image link" style="flex:1; min-width:200px;">
@@ -818,6 +818,9 @@
             </label>
             <button type="button" class="btn btn-outline" id="qaUseSampleImageBtn" style="padding:0.65rem 0.9rem; font-size:0.8rem; white-space:nowrap;">
               <i class="fa-solid fa-wand-magic-sparkles"></i> Use Sample UI
+            </button>
+            <button type="button" class="btn btn-outline qa-btn-clear-image" id="qaClearImageBtn" style="display:none; padding:0.65rem 0.9rem; font-size:0.8rem; white-space:nowrap;">
+              <i class="fa-solid fa-trash-can"></i> Clear Image
             </button>
           </div>
 
@@ -848,8 +851,11 @@
                 <button type="button" class="qa-tool-btn" id="qaUndoBtn" title="Undo Last Highlight">
                   <i class="fa-solid fa-rotate-left"></i> Undo
                 </button>
-                <button type="button" class="qa-tool-btn qa-btn-danger" id="qaClearCanvasBtn" title="Clear All Highlights">
-                  <i class="fa-solid fa-trash-can"></i> Clear
+                <button type="button" class="qa-tool-btn" id="qaClearCanvasBtn" title="Clear Drawn Highlights">
+                  <i class="fa-solid fa-eraser"></i> Clear Marks
+                </button>
+                <button type="button" class="qa-tool-btn qa-btn-danger" id="qaRemoveImageStudioBtn" title="Remove Screenshot & Close Studio">
+                  <i class="fa-solid fa-trash-can"></i> Remove Image
                 </button>
               </div>
             </div>
@@ -888,6 +894,13 @@
           </div>
           <div class="qa-inspector-image-scroll">
             <img id="qaLightboxImg" src="" alt="Proof Screenshot">
+            <div id="qaLightboxNoImg" class="qa-no-proof-lightbox-placeholder" style="display:none;">
+              <i class="fa-regular fa-image" style="font-size:2.8rem; opacity:0.3; margin-bottom:0.75rem;"></i>
+              <strong style="color:var(--text-main); font-size:0.95rem;">No Screenshot Attached</strong>
+              <p style="color:var(--text-muted); font-size:0.78rem; margin-top:0.35rem; max-width:260px; line-height:1.4;">
+                The reporter submitted this bug as a text-only issue description.
+              </p>
+            </div>
           </div>
         </div>
 

@@ -2693,6 +2693,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const qaProofUrl = document.getElementById('qaProofUrl');
     const qaProofFile = document.getElementById('qaProofFile');
     const qaUseSampleImageBtn = document.getElementById('qaUseSampleImageBtn');
+    const qaClearImageBtn = document.getElementById('qaClearImageBtn');
+    const qaRemoveImageStudioBtn = document.getElementById('qaRemoveImageStudioBtn');
     const qaAnnotationStudio = document.getElementById('qaAnnotationStudio');
     const qaCanvas = document.getElementById('qaCanvas');
     const qaCanvasWrapper = document.getElementById('qaCanvasWrapper');
@@ -2825,6 +2827,7 @@ document.addEventListener('DOMContentLoaded', () => {
         qaCanvas.height = Math.round(h * ratio);
 
         if (qaAnnotationStudio) qaAnnotationStudio.style.display = 'block';
+        if (qaClearImageBtn) qaClearImageBtn.style.display = 'inline-flex';
         redrawCanvas();
         if (qaCanvasHint) {
           qaCanvasHint.innerHTML = `<i class="fa-solid fa-shapes"></i> Image ready! Drag on image to highlight glitch with <strong>${activeTool === 'box' ? 'Boxes' : 'Pen'}</strong>.`;
@@ -2992,8 +2995,41 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // Clear / Remove QA Image function
+    function clearQaImage() {
+      baseImg = null;
+      annotations = [];
+      if (qaProofUrl) qaProofUrl.value = '';
+      if (qaProofFile) qaProofFile.value = '';
+      if (ctx && qaCanvas) {
+        ctx.clearRect(0, 0, qaCanvas.width, qaCanvas.height);
+      }
+      if (qaAnnotationStudio) {
+        qaAnnotationStudio.style.display = 'none';
+      }
+      if (qaClearImageBtn) {
+        qaClearImageBtn.style.display = 'none';
+      }
+      showToast("Screenshot removed", "info");
+    }
+
+    if (qaClearImageBtn) {
+      qaClearImageBtn.addEventListener('click', clearQaImage);
+    }
+    if (qaRemoveImageStudioBtn) {
+      qaRemoveImageStudioBtn.addEventListener('click', clearQaImage);
+    }
+
     // Image Input Listeners
     if (qaProofUrl) {
+      qaProofUrl.addEventListener('input', () => {
+        const url = qaProofUrl.value.trim();
+        if (url) {
+          if (qaClearImageBtn) qaClearImageBtn.style.display = 'inline-flex';
+        } else if (!baseImg) {
+          if (qaClearImageBtn) qaClearImageBtn.style.display = 'none';
+        }
+      });
       qaProofUrl.addEventListener('change', () => {
         const url = qaProofUrl.value.trim();
         if (url) loadImageIntoCanvas(url);
@@ -3080,6 +3116,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!report) return;
 
       const img = document.getElementById('qaLightboxImg');
+      const noImg = document.getElementById('qaLightboxNoImg');
       const title = document.getElementById('qaLightboxTitle');
       const idEl = document.getElementById('qaInspectId');
       const priEl = document.getElementById('qaInspectPriority');
@@ -3089,7 +3126,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const fixEl = document.getElementById('qaInspectFixAttempts');
       const descEl = document.getElementById('qaInspectDescription');
 
-      if (img) img.src = report.proof || '';
+      if (report.proof && report.proof.trim()) {
+        if (img) {
+          img.src = report.proof;
+          img.style.display = 'block';
+        }
+        if (noImg) noImg.style.display = 'none';
+      } else {
+        if (img) {
+          img.src = '';
+          img.style.display = 'none';
+        }
+        if (noImg) noImg.style.display = 'flex';
+      }
       if (title) title.textContent = report.topic || 'Issue Details';
       if (idEl) idEl.textContent = report.id;
       if (priEl) priEl.innerHTML = `<span class="badge-priority badge-priority-${(report.priority || 'medium').toLowerCase()}">${report.priority}</span>`;
@@ -3115,15 +3164,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const nextId = `QA-${String(maxNum + 1).padStart(3, '0')}`;
 
-        // 2. Export proof image (either annotated canvas or provided URL)
+        // 2. Export proof image (either annotated canvas or provided URL, optional)
         let proofData = '';
         if (baseImg && qaCanvas) {
           proofData = qaCanvas.toDataURL('image/jpeg', 0.82);
         } else if (qaProofUrl && qaProofUrl.value.trim()) {
           proofData = qaProofUrl.value.trim();
         } else {
-          // Default placeholder
-          proofData = 'https://images.unsplash.com/photo-1555421689-491a97ff2040?w=600&auto=format&fit=crop&q=80';
+          proofData = ''; // Optional - no screenshot attached
         }
 
         const newReport = {
@@ -3157,8 +3205,10 @@ document.addEventListener('DOMContentLoaded', () => {
         qaModal.classList.remove('active');
         qaReportForm.reset();
         if (qaAnnotationStudio) qaAnnotationStudio.style.display = 'none';
+        if (qaClearImageBtn) qaClearImageBtn.style.display = 'none';
         baseImg = null;
         annotations = [];
+        if (ctx && qaCanvas) ctx.clearRect(0, 0, qaCanvas.width, qaCanvas.height);
 
         showToast(`Bug report ${nextId} submitted successfully! 🐞`, 'success');
 
@@ -3217,10 +3267,19 @@ document.addEventListener('DOMContentLoaded', () => {
           </span>
         </td>
         <td>
-          <div class="qa-proof-cell" data-inspect-id="${report.id}" title="Click to view screenshot & problem description">
-            <img class="qa-proof-thumb" src="${report.proof}" alt="Proof Thumbnail">
-            <span class="qa-proof-zoom-icon"><i class="fa-solid fa-magnifying-glass-plus"></i></span>
-          </div>
+          ${report.proof && report.proof.trim() ? `
+            <div class="qa-proof-cell" data-inspect-id="${report.id}" title="Click to view screenshot & details">
+              <img class="qa-proof-thumb" src="${report.proof}" alt="Proof Thumbnail">
+              <span class="qa-proof-zoom-icon"><i class="fa-solid fa-magnifying-glass-plus"></i></span>
+            </div>
+          ` : `
+            <div class="qa-proof-cell" data-inspect-id="${report.id}" title="No screenshot attached. Click to read details.">
+              <div class="qa-no-proof-thumb">
+                <i class="fa-regular fa-image" style="opacity:0.4; font-size:1.05rem;"></i>
+                <span style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">No proof</span>
+              </div>
+            </div>
+          `}
         </td>
         <td>
           <span class="badge-status badge-status-${(report.status || 'new').toLowerCase().replace(/\s+/g, '-')}">
@@ -3316,10 +3375,19 @@ document.addEventListener('DOMContentLoaded', () => {
           </span>
         </td>
         <td>
-          <div class="qa-proof-cell" data-inspect-id="${report.id}" title="Click to inspect problem & screenshot">
-            <img class="qa-proof-thumb" src="${report.proof}" alt="Proof Thumbnail">
-            <span class="qa-proof-zoom-icon"><i class="fa-solid fa-magnifying-glass-plus"></i></span>
-          </div>
+          ${report.proof && report.proof.trim() ? `
+            <div class="qa-proof-cell" data-inspect-id="${report.id}" title="Click to inspect problem & screenshot">
+              <img class="qa-proof-thumb" src="${report.proof}" alt="Proof Thumbnail">
+              <span class="qa-proof-zoom-icon"><i class="fa-solid fa-magnifying-glass-plus"></i></span>
+            </div>
+          ` : `
+            <div class="qa-proof-cell" data-inspect-id="${report.id}" title="No screenshot attached. Click to inspect details.">
+              <div class="qa-no-proof-thumb">
+                <i class="fa-regular fa-image" style="opacity:0.4; font-size:1.05rem;"></i>
+                <span style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">No proof</span>
+              </div>
+            </div>
+          `}
         </td>
         <td>
           <select class="admin-select qa-admin-status-select" data-id="${report.id}" style="padding:0.35rem 0.6rem; font-size:0.8rem;">
